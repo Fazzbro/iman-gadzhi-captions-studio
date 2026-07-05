@@ -1,0 +1,10 @@
+gradio==4.44.0
+starlette<0.38.0
+fastapi<0.112.0
+whisper-timestamped
+moviepy>=2.0.0
+torch
+scipy
+numpy
+huggingface_hub<0.26.0
+pydantic<2.11.0
