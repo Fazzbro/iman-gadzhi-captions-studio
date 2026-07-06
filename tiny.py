@@ -44,8 +44,8 @@ def apply_wipe_filter(clip, duration=0.3):
         new_clip.mask = clip.mask.transform(fl_filter)
     return new_clip
 
-def make_gradient_text(text, font, font_size, color_top, color_bottom, margin_x=20, margin_y=50):
-    """Generates text filled with a smooth top-to-bottom RGB gradient."""
+def make_gradient_text(text, font, font_size, color_top, color_mid, color_bottom, margin_x=20, margin_y=50):
+    """Generates text filled with a smooth 3-stop (top-mid-bottom) RGB gradient."""
     base = TextClip(text=text, font=font, font_size=font_size, color='white', margin=(margin_x, margin_y))
     mask = base.mask.get_frame(0)
     h, w = mask.shape
@@ -55,11 +55,20 @@ def make_gradient_text(text, font, font_size, color_top, color_bottom, margin_x=
         effective_y = y - margin_y
         effective_h = max(h - (margin_y * 2), 1)
         ratio = max(0.0, min(1.0, effective_y / effective_h))
-        ratio = 0.5 - 0.5 * np.cos(ratio * np.pi)  # Smooth cosine interpolation
         
-        r = int(color_top[0] * (1 - ratio) + color_bottom[0] * ratio)
-        g = int(color_top[1] * (1 - ratio) + color_bottom[1] * ratio)
-        b = int(color_top[2] * (1 - ratio) + color_bottom[2] * ratio)
+        if ratio <= 0.5:
+            sub_ratio = ratio * 2.0
+            smooth = 0.5 - 0.5 * np.cos(sub_ratio * np.pi)
+            r = int(color_top[0] * (1 - smooth) + color_mid[0] * smooth)
+            g = int(color_top[1] * (1 - smooth) + color_mid[1] * smooth)
+            b = int(color_top[2] * (1 - smooth) + color_mid[2] * smooth)
+        else:
+            sub_ratio = (ratio - 0.5) * 2.0
+            smooth = 0.5 - 0.5 * np.cos(sub_ratio * np.pi)
+            r = int(color_mid[0] * (1 - smooth) + color_bottom[0] * smooth)
+            g = int(color_mid[1] * (1 - smooth) + color_bottom[1] * smooth)
+            b = int(color_mid[2] * (1 - smooth) + color_bottom[2] * smooth)
+            
         grad[y, :, :] = [r, g, b]
         
     try:
@@ -135,8 +144,10 @@ def render_video_gui(
     show_shadow, 
     show_glow, 
     t1_top_hex, 
+    t1_mid_hex, 
     t1_bot_hex, 
     t2_top_hex, 
+    t2_mid_hex, 
     t2_bot_hex, 
     progress=gr.Progress()
 ):
@@ -201,13 +212,15 @@ def render_video_gui(
     BASE_Y = int(video.h * 0.6)  # Set captions in the lower third
     
     T1_TOP = hex_to_rgb(t1_top_hex)
+    T1_MID = hex_to_rgb(t1_mid_hex)
     T1_BOT = hex_to_rgb(t1_bot_hex)
-    T1_GLOW = T1_TOP
+    T1_GLOW = T1_MID
     T1_3D = "#333335"
     
     T2_TOP = hex_to_rgb(t2_top_hex)
+    T2_MID = hex_to_rgb(t2_mid_hex)
     T2_BOT = hex_to_rgb(t2_bot_hex)
-    T2_GLOW = T2_BOT
+    T2_GLOW = T2_MID
     T2_3D = "#4A1800"
     
     progress(0.4, desc="Compositing Graphic & Animation Layers...")
@@ -280,7 +293,7 @@ def render_video_gui(
                     c = apply_wipe_filter(clip, duration=wipe_dur).with_start(start_time).with_end(end_time).with_position((start_x_t1 + ox, BASE_Y + oy))
                     video_layers.append(c)
                     
-            t1_core = make_gradient_text(word1_text, FONT, chunk_font_size, T1_TOP, T1_BOT, margin_x=margin_x, margin_y=margin_y)
+            t1_core = make_gradient_text(word1_text, FONT, chunk_font_size, T1_TOP, T1_MID, T1_BOT, margin_x=margin_x, margin_y=margin_y)
             t1_core = apply_wipe_filter(t1_core, duration=wipe_dur).with_start(start_time).with_end(end_time).with_position((start_x_t1, BASE_Y))
             video_layers.append(t1_core)
             
@@ -301,7 +314,7 @@ def render_video_gui(
                         c = clip.with_start(start_time).with_end(end_time).with_position(t2_3d_anim)
                         video_layers.append(c)
                         
-                t2_core = make_gradient_text(word2_text, FONT, chunk_font_size, T2_TOP, T2_BOT, margin_x=margin_x, margin_y=margin_y)
+                t2_core = make_gradient_text(word2_text, FONT, chunk_font_size, T2_TOP, T2_MID, T2_BOT, margin_x=margin_x, margin_y=margin_y)
                 t2_core = t2_core.with_start(start_time).with_end(end_time).with_position(rise_anim_core)
                 video_layers.append(t2_core)
                 
@@ -462,13 +475,15 @@ with gr.Blocks(title="Iman Gadzhi Studio Captions", css=custom_css) as app:
                 gr.HTML("<span style='color: #37474F; font-weight: 700; font-size: 0.9rem;'>🎨 Context Word Palette (Word 1)</span>")
                 with gr.Row():
                     t1_top = gr.ColorPicker(label="Top Color", value="#FFFFFF", elem_classes=["neumorphic-input"])
-                    t1_bot = gr.ColorPicker(label="Bottom Color", value="#BEBEC8", elem_classes=["neumorphic-input"])
+                    t1_mid = gr.ColorPicker(label="Middle Color", value="#E0E0EB", elem_classes=["neumorphic-input"])
+                    t1_bot = gr.ColorPicker(label="Bottom Color", value="#A0A0B0", elem_classes=["neumorphic-input"])
                     
             with gr.Group(elem_classes=["style-group"]):
                 gr.HTML("<span style='color: #37474F; font-weight: 700; font-size: 0.9rem;'>🔥 Punch Word Palette (Word 2)</span>")
                 with gr.Row():
-                    t2_top = gr.ColorPicker(label="Top Color", value="#FFE600", elem_classes=["neumorphic-input"])
-                    t2_bot = gr.ColorPicker(label="Bottom Color", value="#FF7800", elem_classes=["neumorphic-input"])
+                    t2_top = gr.ColorPicker(label="Top Color", value="#FFF500", elem_classes=["neumorphic-input"])
+                    t2_mid = gr.ColorPicker(label="Middle Color", value="#FF9E00", elem_classes=["neumorphic-input"])
+                    t2_bot = gr.ColorPicker(label="Bottom Color", value="#FF4100", elem_classes=["neumorphic-input"])
                     
             render_btn = gr.Button("✨ Render Captions", elem_classes=["primary-btn"])
             
@@ -486,8 +501,10 @@ with gr.Blocks(title="Iman Gadzhi Studio Captions", css=custom_css) as app:
             show_shadow, 
             show_glow, 
             t1_top, 
+            t1_mid, 
             t1_bot, 
             t2_top, 
+            t2_mid, 
             t2_bot
         ],
         outputs=[output_video]
