@@ -7,7 +7,7 @@ if sys.platform == 'win32':
 
 import gradio as gr
 import whisper_timestamped as whisper
-from moviepy import VideoFileClip, ColorClip, TextClip, CompositeVideoClip, ImageClip
+from moviepy import VideoFileClip, AudioFileClip, ColorClip, TextClip, CompositeVideoClip, ImageClip
 import numpy as np
 from scipy.ndimage import gaussian_filter
 import torch
@@ -139,6 +139,8 @@ def make_rise_anim(base_x, base_y, chunk_duration, travel_dist, offset_x=0, offs
 
 def render_video_gui(
     video_path, 
+    audio_path,
+    audio_aspect_ratio,
     font_file, 
     font_size, 
     show_shadow, 
@@ -151,24 +153,54 @@ def render_video_gui(
     t2_bot_hex, 
     progress=gr.Progress()
 ):
-    if not video_path:
-        raise gr.Error("Please upload a video file first!")
-        
-    progress(0.1, desc="Extracting Audio & Initializing AI Models...")
-    print("\n[AI Studio] Step 1: Loading video and extracting audio track...", flush=True)
-    video = VideoFileClip(video_path)
+    has_video = video_path is not None and os.path.exists(str(video_path))
+    has_audio = audio_path is not None and os.path.exists(str(audio_path))
     
-    if video.audio is None:
-        video.close()
-        raise gr.Error("The uploaded video has no audio channel! Audio is required for transcription.")
+    if not has_video and not has_audio:
+        raise gr.Error("Please upload either a Source Video (Option A) OR an Audio file (Option B)!")
         
+    progress(0.1, desc="Loading Media & Extracting Audio Track...")
+    print("\n[AI Studio] Step 1: Loading media track...", flush=True)
+    
     temp_audio = "temp_gui_audio.wav"
-    try:
-        video.audio.write_audiofile(temp_audio, logger=None)
-    except Exception as e:
-        video.close()
-        raise gr.Error(f"Failed to extract audio from video: {e}")
     
+    if has_video:
+        print("[AI Studio] Mode: Video Input detected. Extracting audio...", flush=True)
+        media_clip = VideoFileClip(video_path)
+        if media_clip.audio is None:
+            media_clip.close()
+            raise gr.Error("The uploaded video has no audio channel! Audio is required for transcription.")
+        canvas_w, canvas_h = media_clip.w, media_clip.h
+        duration = media_clip.duration
+        audio_clip = media_clip.audio
+        try:
+            audio_clip.write_audiofile(temp_audio, logger=None)
+        except Exception as e:
+            media_clip.close()
+            raise gr.Error(f"Failed to extract audio from video: {e}")
+    else:
+        print("[AI Studio] Mode: Direct Audio File Input detected...", flush=True)
+        try:
+            audio_clip = AudioFileClip(audio_path)
+        except Exception as e:
+            raise gr.Error(f"Failed to load audio file: {e}")
+            
+        media_clip = audio_clip
+        duration = audio_clip.duration
+        try:
+            audio_clip.write_audiofile(temp_audio, logger=None)
+        except Exception as e:
+            audio_clip.close()
+            raise gr.Error(f"Failed to convert audio: {e}")
+            
+        # Determine canvas size from aspect ratio selection
+        if audio_aspect_ratio and "16:9" in audio_aspect_ratio:
+            canvas_w, canvas_h = 1920, 1080
+        elif audio_aspect_ratio and "1:1" in audio_aspect_ratio:
+            canvas_w, canvas_h = 1080, 1080
+        else:
+            canvas_w, canvas_h = 1080, 1920
+            
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"[AI Studio] Step 2: Loading Whisper 'tiny' model on {device.upper()}...", flush=True)
     
@@ -190,14 +222,14 @@ def render_video_gui(
     
     segments = result.get("segments", [])
     if not segments:
-        video.close()
-        raise gr.Error("No speech detected in the video. Please verify the voice audio level and try again.")
+        media_clip.close()
+        raise gr.Error("No speech detected in the media. Please verify the audio level and try again.")
         
     progress(0.3, desc="Building Canvas & Typography Elements...")
     print("[AI Studio] Step 3: Preparing layers and formatting typography...", flush=True)
     
     # Create a solid green screen backdrop (#00FF00) for chroma keying in video editors
-    green_bg = ColorClip(size=(video.w, video.h), color=(0, 255, 0), duration=video.duration)
+    green_bg = ColorClip(size=(canvas_w, canvas_h), color=(0, 255, 0), duration=duration)
     video_layers = [green_bg]
     
     # Select font: custom, workspace fallback, or system fallback
@@ -209,7 +241,7 @@ def render_video_gui(
         FONT = "Impact"
         
     FONT_SIZE = int(font_size)
-    BASE_Y = int(video.h * 0.6)  # Set captions in the lower third
+    BASE_Y = int(canvas_h * 0.6)  # Set captions in the lower third
     
     T1_TOP = hex_to_rgb(t1_top_hex)
     T1_MID = hex_to_rgb(t1_mid_hex)
@@ -260,7 +292,7 @@ def render_video_gui(
                     continue
             
             total_width = w1 + w2
-            max_allowed_w = int(video.w * 0.9)
+            max_allowed_w = int(canvas_w * 0.9)
             
             # Linear scaling helper if bounds are exceeded
             if total_width > max_allowed_w:
@@ -275,7 +307,7 @@ def render_video_gui(
                 except Exception as e:
                     print(f"[Warning] Dynamic resizing calculation failed: {e}", flush=True)
             
-            start_x_t1 = (video.w - total_width) // 2
+            start_x_t1 = (canvas_w - total_width) // 2
             start_x_t2 = start_x_t1 + w1 - int(30 * (chunk_font_size / FONT_SIZE) if FONT_SIZE > 0 else 30)
             
             wipe_dur = min(0.35, chunk_duration * 0.8)
@@ -322,7 +354,7 @@ def render_video_gui(
     output_path = "gui_output_captions.mp4"
     print(f"[AI Studio] Step 4: Exporting final video composited structure to '{output_path}'...", flush=True)
     
-    final_video = CompositeVideoClip(video_layers).with_audio(video.audio)
+    final_video = CompositeVideoClip(video_layers).with_audio(audio_clip)
     
     # Renders with percentage progress bar printed inside terminal stdout
     final_video.write_videofile(
@@ -335,7 +367,7 @@ def render_video_gui(
     
     final_video.close()
     green_bg.close()
-    video.close()
+    media_clip.close()
     
     print(f"\n[AI Studio] SUCCESS! Rendered video output written to '{output_path}'!", flush=True)
     progress(1.0, desc="Done!")
@@ -472,7 +504,15 @@ with gr.Blocks(title="Iman Gadzhi Studio Captions Pro", css=custom_css) as app:
             
             with gr.Tabs():
                 with gr.TabItem("📁 1. Media & Typography"):
-                    input_video = gr.Video(label="Upload Source Video (English Speech)", sources=["upload"], elem_classes=["studio-input"])
+                    gr.HTML("<p style='color: #94A3B8; font-size: 0.85rem; margin-bottom: 12px;'>Upload EITHER a Source Video (Option A) OR an Audio File (.mp3/.wav/.m4a) if your video file is too large!</p>")
+                    input_video = gr.Video(label="Option A: Upload Source Video (Auto-detects Resolution)", sources=["upload"], elem_classes=["studio-input"])
+                    input_audio = gr.Audio(label="Option B: Upload Audio File (Fast for Huge Videos)", type="filepath", elem_classes=["studio-input"])
+                    audio_aspect = gr.Dropdown(
+                        label="Green Screen Aspect Ratio (Required for Option B Audio Uploads)", 
+                        choices=["9:16 Vertical Shorts (1080x1920)", "16:9 Horizontal Landscape (1920x1080)", "1:1 Square (1080x1080)"], 
+                        value="9:16 Vertical Shorts (1080x1920)",
+                        elem_classes=["studio-input"]
+                    )
                     with gr.Row():
                         font_upload = gr.File(label="Custom Typography Font (.ttf/.otf)", file_types=[".ttf", ".otf"], type="filepath", elem_classes=["studio-input"])
                         font_size_slider = gr.Slider(minimum=80, maximum=200, value=145, step=5, label="Typography Font Scale (px)", elem_classes=["studio-input"])
@@ -525,6 +565,8 @@ with gr.Blocks(title="Iman Gadzhi Studio Captions Pro", css=custom_css) as app:
         fn=render_video_gui,
         inputs=[
             input_video, 
+            input_audio,
+            audio_aspect,
             font_upload, 
             font_size_slider, 
             show_shadow, 
