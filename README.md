@@ -27,7 +27,7 @@ Click the official badge banner above to run the AI studio directly in your brow
 ## ✨ Features
 - **🟩 Solid Green Screen Output (`#00FF00`)**: Perfectly colored RGB green background optimized for 1-click Chroma Keying in Premiere Pro, CapCut, DaVinci Resolve, and Final Cut Pro.
 - **🎙️ Preserved Timeline Audio**: Keeps the original audio waveform intact in the exported `.mp4` for instant synchronization and alignment with your video editor timeline.
-- **🔥 Iman Gadzhi Typography**: Dual-word kinetic animation style with custom top/bottom gradients, neon back-glows, and extruded 3D block shadows.
+- **🔥 Iman Gadzhi Typography**: Dual-word kinetic animation style with custom 3-stop (Top, Middle, Bottom) RGB color gradients, neon back-glows, and extruded 3D block shadows.
 - **🎨 Neumorphic Soft UI**: Sleek embossed UI theme built on Gradio with customizable typography sizes and color palettes.
 
 ---
