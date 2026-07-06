@@ -506,7 +506,7 @@ with gr.Blocks(title="Iman Gadzhi Studio Captions Pro", css=custom_css) as app:
                 with gr.TabItem("📁 1. Media & Typography"):
                     gr.HTML("<p style='color: #94A3B8; font-size: 0.85rem; margin-bottom: 12px;'>Upload EITHER a Source Video (Option A) OR an Audio File (.mp3/.wav/.m4a) if your video file is too large!</p>")
                     input_video = gr.Video(label="Option A: Upload Source Video (Auto-detects Resolution)", sources=["upload"], elem_classes=["studio-input"])
-                    input_audio = gr.Audio(label="Option B: Upload Audio File (Fast for Huge Videos)", type="filepath", elem_classes=["studio-input"])
+                    input_audio = gr.Audio(label="Option B: Upload Audio File (Fast for Huge Videos)", sources=["upload"], type="filepath", elem_classes=["studio-input"])
                     audio_aspect = gr.Dropdown(
                         label="Green Screen Aspect Ratio (Required for Option B Audio Uploads)", 
                         choices=["9:16 Vertical Shorts (1080x1920)", "16:9 Horizontal Landscape (1920x1080)", "1:1 Square (1080x1080)"], 
