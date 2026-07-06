@@ -347,150 +347,179 @@ def render_video_gui(
 # ==========================================
 
 custom_css = """
+/* Studio Dark Theme Reset */
 body, .gradio-container {
-    background-color: #ECEFF1 !important;
-    font-family: 'Outfit', 'Inter', sans-serif !important;
+    background-color: #0B0D10 !important;
+    color: #E2E8F0 !important;
+    font-family: 'Inter', 'SF Pro Display', -apple-system, sans-serif !important;
 }
 
-/* Raised Embossed soft UI container */
-.neumorphic-card {
-    background: #ECEFF1 !important;
-    border-radius: 24px !important;
-    box-shadow: 9px 9px 18px #CFD8DC, -9px -9px 18px #FFFFFF !important;
-    border: none !important;
-    padding: 24px !important;
-    margin-bottom: 24px !important;
+/* Header Navbar Bar */
+.studio-header {
+    background: linear-gradient(180deg, #161A22 0%, #11141A 100%);
+    border-bottom: 1px solid #232834;
+    padding: 20px 32px;
+    margin-bottom: 24px;
+    border-radius: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
 }
 
-/* Sleek obsidian neumorphic container */
-.dark-obsidian-card {
-    background: #1C1F26 !important;
-    color: #FFFFFF !important;
-    box-shadow: 10px 10px 20px #0F1115, -10px -10px 20px #292D37 !important;
-    border-radius: 24px !important;
-    padding: 24px !important;
-    border: none !important;
-    margin-bottom: 24px !important;
-}
-
-.dark-obsidian-card * {
-    color: #FFFFFF !important;
-}
-.dark-obsidian-card span, .dark-obsidian-card p, .dark-obsidian-card h1, .dark-obsidian-card h2, .dark-obsidian-card h3 {
-    color: #FFFFFF !important;
-}
-
-/* Primary Button (Sunset Cyberpunk Gradient) */
-button.primary-btn {
-    background: linear-gradient(135deg, #FF416C 0%, #FF4B2B 100%) !important;
-    border-radius: 50px !important;
-    color: white !important;
-    font-weight: 700 !important;
-    border: none !important;
-    box-shadow: 0 10px 20px -5px rgba(255, 75, 43, 0.5), 6px 6px 12px #CFD8DC, -6px -6px 12px #FFFFFF !important;
-    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
-    padding: 14px 28px !important;
-    cursor: pointer !important;
-    font-size: 1.1rem !important;
-    text-transform: uppercase !important;
-    letter-spacing: 1px !important;
-}
-
-button.primary-btn:hover {
-    transform: translateY(-2px) !important;
-    box-shadow: 0 12px 24px -5px rgba(255, 75, 43, 0.6), 4px 4px 8px #CFD8DC, -4px -4px 8px #FFFFFF !important;
-}
-
-button.primary-btn:active {
-    transform: translateY(1px) !important;
-}
-
-/* Inset dual shadows for input fields & upload panels */
-.neumorphic-input input, 
-.neumorphic-input textarea, 
-.neumorphic-input select,
-.neumorphic-input div[class*="upload"],
-.neumorphic-input div[class*="box"],
-.neumorphic-input .file-preview,
-.neumorphic-input .upload-button {
-    box-shadow: inset 4px 4px 8px #CFD8DC, inset -4px -4px 8px #FFFFFF !important;
-    border: none !important;
-    background-color: #ECEFF1 !important;
+/* Studio Panels & Cards */
+.studio-panel {
+    background: #14171F !important;
+    border: 1px solid #232834 !important;
     border-radius: 12px !important;
-    color: #37474F !important;
+    padding: 24px !important;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.5) !important;
 }
 
-/* Sliders layout color override */
-.neumorphic-slider input[type="range"] {
-    accent-color: #FF4B2B !important;
+/* Tabs styling */
+.gradio-tabs {
+    background: transparent !important;
 }
-
-/* Toggles & Checkbox Accent styling */
-.neumorphic-checkbox input[type="checkbox"] {
-    accent-color: #FF4B2B !important;
-}
-.neumorphic-checkbox label span {
-    color: #37474F !important;
+.gradio-tabs button {
     font-weight: 600 !important;
+    color: #94A3B8 !important;
+    border-radius: 8px 8px 0 0 !important;
+    padding: 10px 20px !important;
+    transition: all 0.2s ease !important;
+}
+.gradio-tabs button.selected {
+    color: #FF5A36 !important;
+    border-bottom: 2px solid #FF5A36 !important;
+    background: #191D28 !important;
 }
 
-/* Internal palette sub-group */
-.style-group {
-    background: #ECEFF1 !important;
-    border-radius: 18px !important;
-    padding: 16px !important;
-    margin-top: 15px !important;
-    margin-bottom: 15px !important;
-    box-shadow: inset 4px 4px 8px #CFD8DC, inset -4px -4px 8px #FFFFFF !important;
-    border: none !important;
+/* Input Fields & Upload Boxes */
+.studio-input input, .studio-input textarea, .studio-input select, .studio-input div[class*="upload"] {
+    background-color: #0E1017 !important;
+    border: 1px solid #232834 !important;
+    border-radius: 8px !important;
+    color: #F8FAFC !important;
+    transition: border-color 0.2s ease !important;
+}
+.studio-input input:focus, .studio-input textarea:focus {
+    border-color: #FF5A36 !important;
+    outline: none !important;
+}
+
+/* Color Pickers */
+.color-box {
+    background: #191D28 !important;
+    border: 1px solid #2A303F !important;
+    border-radius: 8px !important;
+    padding: 14px !important;
+    margin-bottom: 12px !important;
+}
+
+/* Action Button (Broadcast Studio Red/Orange) */
+button.primary-btn {
+    background: linear-gradient(135deg, #FF5A36 0%, #FF2E00 100%) !important;
+    border-radius: 8px !important;
+    color: #FFFFFF !important;
+    font-weight: 700 !important;
+    border: 1px solid #FF7456 !important;
+    box-shadow: 0 4px 15px rgba(255, 46, 0, 0.4) !important;
+    padding: 16px 24px !important;
+    cursor: pointer !important;
+    font-size: 1.05rem !important;
+    letter-spacing: 0.8px !important;
+    text-transform: uppercase !important;
+    transition: all 0.2s ease !important;
+    width: 100% !important;
+    margin-top: 16px !important;
+}
+button.primary-btn:hover {
+    transform: translateY(-1px) !important;
+    box-shadow: 0 6px 20px rgba(255, 46, 0, 0.6) !important;
+    background: linear-gradient(135deg, #FF6A48 0%, #FF3E14 100%) !important;
+}
+
+/* Checkboxes */
+.studio-checkbox input[type="checkbox"] {
+    accent-color: #FF5A36 !important;
+}
+.studio-checkbox label span {
+    color: #E2E8F0 !important;
+    font-weight: 500 !important;
 }
 """
 
-with gr.Blocks(title="Iman Gadzhi Studio Captions", css=custom_css) as app:
-    
-    # Premium Header Block
+with gr.Blocks(title="Iman Gadzhi Studio Captions Pro", css=custom_css) as app:
+    # Studio Top Navbar
     gr.HTML("""
-    <div style="text-align: center; margin-bottom: 30px; padding: 10px;">
-        <h1 style="background: linear-gradient(135deg, #FF416C 0%, #FF4B2B 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 900; font-size: 2.8rem; margin: 0; letter-spacing: -1px;">🎬 IMAN GADZHI</h1>
-        <h2 style="color: #37474F; font-weight: 800; font-size: 1.8rem; margin: 5px 0 0 0; text-transform: uppercase; letter-spacing: 2px;">AI Studio Captions</h2>
-        <p style="color: #78909C; font-weight: 500; font-size: 1.1rem; margin: 8px 0 0 0;">Neumorphic Soft UI • 🟩 Green Screen Chroma Key Output</p>
+    <div class="studio-header">
+        <div>
+            <h1 style="color: #FFFFFF; font-weight: 800; font-size: 1.6rem; margin: 0; display: inline-flex; align-items: center; gap: 10px;">
+                <span style="background: #FF5A36; padding: 4px 10px; border-radius: 6px; font-size: 1rem; font-weight: 900; color: #000;">REC</span>
+                IMAN GADZHI <span style="color: #94A3B8; font-weight: 400; font-size: 1.2rem;">| STUDIO CAPTIONS PRO</span>
+            </h1>
+        </div>
+        <div style="display: flex; gap: 12px; align-items: center;">
+            <span style="background: rgba(0, 255, 0, 0.15); color: #00FF66; border: 1px solid #00FF66; padding: 4px 12px; border-radius: 20px; font-size: 0.85rem; font-weight: 600;">🟢 CHROMA KEY GREEN SCREEN</span>
+            <span style="background: #232834; color: #CBD5E1; padding: 4px 10px; border-radius: 6px; font-size: 0.85rem; font-family: monospace;">v2.5 PRO</span>
+        </div>
     </div>
     """)
     
-    with gr.Row():
-        # Configuration Control Panel
-        with gr.Column(scale=1, elem_classes=["neumorphic-card"]):
-            gr.HTML("<h3 style='color: #263238; font-weight: 800; border-bottom: 2px solid #CFD8DC; padding-bottom: 8px; margin-bottom: 15px;'>⚙️ CONFIGURATION PANEL</h3>")
+    with gr.Row(equal_height=False):
+        # Left Panel: Controls & Settings
+        with gr.Column(scale=6, elem_classes=["studio-panel"]):
+            gr.HTML("<h3 style='color: #F8FAFC; font-weight: 700; font-size: 1.1rem; margin-top: 0; margin-bottom: 12px; border-bottom: 1px solid #232834; padding-bottom: 10px;'>⚡ STUDIO CONFIGURATION</h3>")
             
-            input_video = gr.Video(label="Upload Media (English Speech)", sources=["upload"], elem_classes=["neumorphic-input"])
-            font_upload = gr.File(label="Upload Typography Font (.ttf / .otf)", file_types=[".ttf", ".otf"], type="filepath", elem_classes=["neumorphic-input"])
-            font_size_slider = gr.Slider(minimum=80, maximum=200, value=145, step=5, label="Typography Font Size", elem_classes=["neumorphic-slider"])
-            
-            # Speed Optimization Checkboxes
-            show_shadow = gr.Checkbox(label="🧊 Render 3D Block Shadow (Extrusion)", value=True, elem_classes=["neumorphic-checkbox"])
-            show_glow = gr.Checkbox(label="✨ Render Neon Background Glow", value=True, elem_classes=["neumorphic-checkbox"])
-            
-            # Palette Colors Sub-groups
-            with gr.Group(elem_classes=["style-group"]):
-                gr.HTML("<span style='color: #37474F; font-weight: 700; font-size: 0.9rem;'>🎨 Context Word Palette (Word 1)</span>")
-                with gr.Row():
-                    t1_top = gr.ColorPicker(label="Top Color", value="#FFFFFF", elem_classes=["neumorphic-input"])
-                    t1_mid = gr.ColorPicker(label="Middle Color", value="#E0E0EB", elem_classes=["neumorphic-input"])
-                    t1_bot = gr.ColorPicker(label="Bottom Color", value="#A0A0B0", elem_classes=["neumorphic-input"])
+            with gr.Tabs():
+                with gr.TabItem("📁 1. Media & Typography"):
+                    input_video = gr.Video(label="Upload Source Video (English Speech)", sources=["upload"], elem_classes=["studio-input"])
+                    with gr.Row():
+                        font_upload = gr.File(label="Custom Typography Font (.ttf/.otf)", file_types=[".ttf", ".otf"], type="filepath", elem_classes=["studio-input"])
+                        font_size_slider = gr.Slider(minimum=80, maximum=200, value=145, step=5, label="Typography Font Scale (px)", elem_classes=["studio-input"])
+                        
+                with gr.TabItem("🎨 2. 3-Stop Color Palettes"):
+                    gr.HTML("<p style='color: #94A3B8; font-size: 0.85rem; margin-bottom: 12px;'>Configure 3-stop (Top ➔ Middle ➔ Bottom) RGB gradients for dual-word kinetic animation.</p>")
+                    with gr.Group(elem_classes=["color-box"]):
+                        gr.HTML("<div style='color: #F8FAFC; font-weight: 600; font-size: 0.9rem; margin-bottom: 8px;'>💬 Context Word Palette (Word 1)</div>")
+                        with gr.Row():
+                            t1_top = gr.ColorPicker(label="Top Stop", value="#FFFFFF")
+                            t1_mid = gr.ColorPicker(label="Middle Stop", value="#E0E0EB")
+                            t1_bot = gr.ColorPicker(label="Bottom Stop", value="#A0A0B0")
+                            
+                    with gr.Group(elem_classes=["color-box"]):
+                        gr.HTML("<div style='color: #FF9E00; font-weight: 600; font-size: 0.9rem; margin-bottom: 8px;'>🔥 Punch Word Palette (Word 2)</div>")
+                        with gr.Row():
+                            t2_top = gr.ColorPicker(label="Top Stop", value="#FFF500")
+                            t2_mid = gr.ColorPicker(label="Middle Stop", value="#FF9E00")
+                            t2_bot = gr.ColorPicker(label="Bottom Stop", value="#FF4100")
+                            
+                with gr.TabItem("✨ 3. VFX & Rendering Engine"):
+                    gr.HTML("<p style='color: #94A3B8; font-size: 0.85rem; margin-bottom: 12px;'>Hardware acceleration and kinetic extrusion settings.</p>")
+                    show_shadow = gr.Checkbox(label="🧊 Render 3D Extruded Block Shadow (14-Layer Darkening)", value=True, elem_classes=["studio-checkbox"])
+                    show_glow = gr.Checkbox(label="✨ Render Neon Gaussian Back-Glow (Tied to Middle Stop Color)", value=True, elem_classes=["studio-checkbox"])
                     
-            with gr.Group(elem_classes=["style-group"]):
-                gr.HTML("<span style='color: #37474F; font-weight: 700; font-size: 0.9rem;'>🔥 Punch Word Palette (Word 2)</span>")
-                with gr.Row():
-                    t2_top = gr.ColorPicker(label="Top Color", value="#FFF500", elem_classes=["neumorphic-input"])
-                    t2_mid = gr.ColorPicker(label="Middle Color", value="#FF9E00", elem_classes=["neumorphic-input"])
-                    t2_bot = gr.ColorPicker(label="Bottom Color", value="#FF4100", elem_classes=["neumorphic-input"])
-                    
-            render_btn = gr.Button("✨ Render Captions", elem_classes=["primary-btn"])
+            render_btn = gr.Button("✨ RENDER STUDIO CAPTIONS", elem_classes=["primary-btn"])
             
-        # Preview Output Screen
-        with gr.Column(scale=1, elem_classes=["dark-obsidian-card"]):
-            gr.HTML("<h3 style='color: #FFFFFF; font-weight: 800; border-bottom: 2px solid #37474F; padding-bottom: 8px; margin-bottom: 15px;'>🟩 CHROMA KEY GREEN SCREEN PREVIEW</h3>")
-            output_video = gr.Video(label="Green Screen Captions Output (Ready for Chroma Key)", interactive=False)
+        # Right Panel: Broadcast Output Monitor
+        with gr.Column(scale=6, elem_classes=["studio-panel"]):
+            gr.HTML("""
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #232834; padding-bottom: 10px; margin-bottom: 14px;">
+                <h3 style="color: #F8FAFC; font-weight: 700; font-size: 1.1rem; margin: 0;">📺 BROADCAST PREVIEW MONITOR</h3>
+                <span style="color: #64748B; font-size: 0.8rem; font-family: monospace;">COLORSPACE: RGB #00FF00</span>
+            </div>
+            """)
+            output_video = gr.Video(label="Chroma Key Green Screen Output", interactive=False, elem_classes=["studio-input"])
+            
+            gr.HTML("""
+            <div style="background: #1A1E29; border: 1px solid #283042; border-radius: 8px; padding: 16px; margin-top: 16px;">
+                <div style="color: #FF5A36; font-weight: 700; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px;">💡 Editor Workflow Guide</div>
+                <ol style="color: #CBD5E1; font-size: 0.85rem; margin: 0; padding-left: 18px; line-height: 1.6;">
+                    <li>Place original video on <b>Track 1</b> and this output on <b>Track 2</b>.</li>
+                    <li>Align using the preserved timeline audio waveforms.</li>
+                    <li>Apply <b>Ultra Key / Chroma Key</b> effect to Track 2 and sample the <font color="#00FF66"><b>#00FF00</b></font> green background.</li>
+                </ol>
+            </div>
+            """)
             
     render_btn.click(
         fn=render_video_gui,
