@@ -118,7 +118,7 @@ def make_gradient_text(text, font, font_size, color_top, color_mid, color_bottom
         
     return ImageClip(grad).with_mask(mask_clip)
 
-def get_solid_3d_extrusion(text, font, font_size, hex_color, depth=9, margin_x=20, margin_y=50):
+def get_solid_3d_extrusion(text, font, font_size, hex_color, depth=9, step_x=1, step_y=1, margin_x=20, margin_y=50):
     """Generates sculpted 3D block extrusion with ambient occlusion gradient plus a subtle contact drop shadow."""
     layers = []
     h_c = hex_color.lstrip('#')
@@ -126,20 +126,115 @@ def get_solid_3d_extrusion(text, font, font_size, hex_color, depth=9, margin_x=2
     
     # Contact Ambient Shadow Layer at bottom back
     contact_shadow = TextClip(text=text, font=font, font_size=font_size, color="#111116", margin=(margin_x, margin_y))
-    layers.append((contact_shadow, depth + 3, depth + 4))
+    layers.append((contact_shadow, depth * step_x + 3 * step_x, depth * step_y + 4 * step_y))
     
     # Ambient Occlusion Extrusion Stack
     for i in range(depth, 0, -1):
-        ao_factor = max(0.18, 1.0 - ((i / depth) ** 1.2) * 0.72)
+        ao_factor = max(0.18, 1.0 - ((i / max(1, depth)) ** 1.2) * 0.72)
         c = f"#{int(r*ao_factor):02x}{int(g*ao_factor):02x}{int(b*ao_factor):02x}"
         t = TextClip(text=text, font=font, font_size=font_size, color=c, margin=(margin_x, margin_y))
-        layers.append((t, i, i))
+        layers.append((t, i * step_x, i * step_y))
     return layers
 
 def hex_to_rgb(hex_color):
     """Translates hex string representations to RGB tuples."""
     hex_color = hex_color.lstrip('#')
     return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+
+def alpha_composite_onto(canvas, clip, pos_x, pos_y):
+    """Composites a single MoviePy clip frame onto a numpy RGB canvas."""
+    rgb = clip.get_frame(0)
+    mask = clip.mask.get_frame(0) if clip.mask else np.ones(rgb.shape[:2])
+    ch, cw, _ = canvas.shape
+    h, w, _ = rgb.shape
+
+    x1 = max(0, pos_x)
+    y1 = max(0, pos_y)
+    x2 = min(cw, pos_x + w)
+    y2 = min(ch, pos_y + h)
+
+    if x2 <= x1 or y2 <= y1:
+        return
+
+    cx1 = x1 - pos_x
+    cy1 = y1 - pos_y
+    cx2 = cx1 + (x2 - x1)
+    cy2 = cy1 + (y2 - y1)
+
+    sub_rgb = rgb[cy1:cy2, cx1:cx2]
+    sub_alpha = mask[cy1:cy2, cx1:cx2, None]
+
+    canvas[y1:y2, x1:x2] = (
+        sub_rgb * sub_alpha + canvas[y1:y2, x1:x2] * (1.0 - sub_alpha)
+    ).astype(np.uint8)
+
+def generate_style_preview_gui(
+    font_file, 
+    font_size, 
+    show_shadow, 
+    shadow_depth, 
+    shadow_step_x, 
+    shadow_step_y, 
+    t1_top_hex, 
+    t1_mid_hex, 
+    t1_bot_hex, 
+    t1_shadow_hex, 
+    t2_top_hex, 
+    t2_mid_hex, 
+    t2_bot_hex, 
+    t2_shadow_hex
+):
+    """Generates an instant high-res PNG style preview before rendering the full video."""
+    from PIL import Image
+    canvas_w, canvas_h = 1080, 1080
+    # Create sleek dark studio background slate
+    canvas = np.full((canvas_h, canvas_w, 3), [15, 23, 42], dtype=np.uint8)
+    
+    if font_file and os.path.exists(font_file):
+        FONT = font_file
+    elif os.path.exists("Poppins-Bold.ttf"):
+        FONT = "Poppins-Bold.ttf"
+    else:
+        FONT = "Arial"
+        
+    FONT_SIZE = int(font_size)
+    margin_x = 20
+    margin_y = 50
+    
+    text1 = "Stop posting"
+    text2 = "Disconnected videos"
+    
+    try:
+        w1 = TextClip(text=text1, font=FONT, font_size=FONT_SIZE, margin=(margin_x, margin_y)).size[0]
+        w2 = TextClip(text=text2, font=FONT, font_size=FONT_SIZE, margin=(margin_x, margin_y)).size[0]
+    except Exception:
+        FONT = "Impact"
+        w1 = TextClip(text=text1, font=FONT, font_size=FONT_SIZE, margin=(margin_x, margin_y)).size[0]
+        w2 = TextClip(text=text2, font=FONT, font_size=FONT_SIZE, margin=(margin_x, margin_y)).size[0]
+        
+    start_x_t1 = (canvas_w - w1) // 2
+    start_x_t2 = (canvas_w - w2) // 2
+    base_y_t1 = canvas_h // 2 - int(FONT_SIZE * 0.55)
+    base_y_t2 = canvas_h // 2 + int(FONT_SIZE * 0.45)
+    
+    if show_shadow:
+        t1_3d = get_solid_3d_extrusion(text1, FONT, FONT_SIZE, t1_shadow_hex, depth=int(shadow_depth), step_x=int(shadow_step_x), step_y=int(shadow_step_y), margin_x=margin_x, margin_y=margin_y)
+        for clip, ox, oy in t1_3d:
+            alpha_composite_onto(canvas, clip, start_x_t1 + ox, base_y_t1 + oy)
+            
+        t2_3d = get_solid_3d_extrusion(text2, FONT, FONT_SIZE, t2_shadow_hex, depth=int(shadow_depth), step_x=int(shadow_step_x), step_y=int(shadow_step_y), margin_x=margin_x, margin_y=margin_y)
+        for clip, ox, oy in t2_3d:
+            alpha_composite_onto(canvas, clip, start_x_t2 + ox, base_y_t2 + oy)
+            
+    t1_core = make_gradient_text(text1, FONT, FONT_SIZE, hex_to_rgb(t1_top_hex), hex_to_rgb(t1_mid_hex), hex_to_rgb(t1_bot_hex), margin_x=margin_x, margin_y=margin_y)
+    alpha_composite_onto(canvas, t1_core, start_x_t1, base_y_t1)
+    
+    t2_core = make_gradient_text(text2, FONT, FONT_SIZE, hex_to_rgb(t2_top_hex), hex_to_rgb(t2_mid_hex), hex_to_rgb(t2_bot_hex), margin_x=margin_x, margin_y=margin_y)
+    alpha_composite_onto(canvas, t2_core, start_x_t2, base_y_t2)
+    
+    preview_path = "live_style_preview.png"
+    Image.fromarray(canvas).save(preview_path)
+    return preview_path
 
 def make_rise_anim(base_x, base_y, chunk_duration, travel_dist, offset_x=0, offset_y=0):
     """Constructs position callback function for the pop-in rise animation."""
@@ -164,12 +259,17 @@ def render_video_gui(
     font_file, 
     font_size, 
     show_shadow, 
+    shadow_depth,
+    shadow_step_x,
+    shadow_step_y,
     t1_top_hex, 
     t1_mid_hex, 
     t1_bot_hex, 
+    t1_shadow_hex,
     t2_top_hex, 
     t2_mid_hex, 
     t2_bot_hex, 
+    t2_shadow_hex,
     progress=gr.Progress()
 ):
     has_video = video_path is not None and os.path.exists(str(video_path))
@@ -193,46 +293,32 @@ def render_video_gui(
         duration = media_clip.duration
         audio_clip = media_clip.audio
         try:
-            audio_clip.write_audiofile(temp_audio, logger=None)
+            audio_clip.write_audiofile(temp_audio, fps=16000, nbytes=2, codec='pcm_s16le', verbose=False, logger=None)
         except Exception as e:
-            media_clip.close()
-            raise gr.Error(f"Failed to extract audio from video: {e}")
+            print(f"[Warning] PCM export failed ({e}). Fallback to standard write...", flush=True)
+            audio_clip.write_audiofile(temp_audio, verbose=False, logger=None)
     else:
-        print("[AI Studio] Mode: Direct Audio File Input detected...", flush=True)
-        try:
-            audio_clip = AudioFileClip(audio_path)
-        except Exception as e:
-            raise gr.Error(f"Failed to load audio file: {e}")
-            
-        media_clip = audio_clip
+        print("[AI Studio] Mode: Direct Audio Upload (Option B) detected...", flush=True)
+        audio_clip = AudioFileClip(audio_path)
         duration = audio_clip.duration
-        try:
-            audio_clip.write_audiofile(temp_audio, logger=None)
-        except Exception as e:
-            audio_clip.close()
-            raise gr.Error(f"Failed to convert audio: {e}")
-            
-        # Determine canvas size from aspect ratio selection
-        if audio_aspect_ratio and "16:9" in audio_aspect_ratio:
-            canvas_w, canvas_h = 1920, 1080
-        elif audio_aspect_ratio and "1:1" in audio_aspect_ratio:
-            canvas_w, canvas_h = 1080, 1080
-        else:
+        if "Vertical Shorts" in audio_aspect_ratio:
             canvas_w, canvas_h = 1080, 1920
+        elif "Horizontal Landscape" in audio_aspect_ratio:
+            canvas_w, canvas_h = 1920, 1080
+        else:
+            canvas_w, canvas_h = 1080, 1080
+        try:
+            audio_clip.write_audiofile(temp_audio, fps=16000, nbytes=2, codec='pcm_s16le', verbose=False, logger=None)
+        except Exception as e:
+            print(f"[Warning] PCM export failed ({e}). Fallback to standard write...", flush=True)
+            audio_clip.write_audiofile(temp_audio, verbose=False, logger=None)
             
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    print(f"[AI Studio] Step 2: Loading Whisper 'tiny' model on {device.upper()}...", flush=True)
-    
-    if device == "cuda":
-        torch.cuda.empty_cache()
-        
-    model = whisper.load_model("tiny", device=device)
-    
-    print("[AI Studio] Executing: Speech-to-Text Transcription with word-level timestamps...", flush=True)
-    result = whisper.transcribe(model, temp_audio, language="en")
+    progress(0.2, desc="Running Faster-Whisper Word-Level Alignment...")
+    print("[AI Studio] Step 2: Transcribing audio with word-level timestamps...", flush=True)
+    result = transcribe_with_word_timestamps(temp_audio)
     
     # Clean up AI model from memory immediately
-    del model
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     if device == "cuda":
         torch.cuda.empty_cache()
         
@@ -257,7 +343,7 @@ def render_video_gui(
     elif os.path.exists("Poppins-Bold.ttf"):
         FONT = "Poppins-Bold.ttf"
     else:
-        FONT = "Impact"
+        FONT = "Arial"
         
     FONT_SIZE = int(font_size)
     BASE_Y = int(canvas_h * 0.6)  # Set captions in the lower third
@@ -265,12 +351,12 @@ def render_video_gui(
     T1_TOP = hex_to_rgb(t1_top_hex)
     T1_MID = hex_to_rgb(t1_mid_hex)
     T1_BOT = hex_to_rgb(t1_bot_hex)
-    T1_3D = "#3D1400"
+    T1_3D = t1_shadow_hex
     
     T2_TOP = hex_to_rgb(t2_top_hex)
     T2_MID = hex_to_rgb(t2_mid_hex)
     T2_BOT = hex_to_rgb(t2_bot_hex)
-    T2_3D = "#222225"
+    T2_3D = t2_shadow_hex
     
     def format_caption_text(s):
         s = s.strip()
@@ -347,7 +433,7 @@ def render_video_gui(
             
             # --- LINE 1 (Top Line: Orange Gradient + Soft Feathered Wipe + 3D Shadow) ---
             if show_shadow:
-                t1_3d_layers = get_solid_3d_extrusion(word1_text, FONT, chunk_font_size, T1_3D, depth=9, margin_x=margin_x, margin_y=margin_y)
+                t1_3d_layers = get_solid_3d_extrusion(word1_text, FONT, chunk_font_size, T1_3D, depth=int(shadow_depth), step_x=int(shadow_step_x), step_y=int(shadow_step_y), margin_x=margin_x, margin_y=margin_y)
                 for clip, ox, oy in t1_3d_layers:
                     c = apply_wipe_filter(clip, duration=wipe_dur, feather_width=35).with_start(start_time).with_end(end_time).with_position((start_x_t1 + ox, base_y_t1 + oy))
                     video_layers.append(c)
@@ -361,7 +447,7 @@ def render_video_gui(
                 rise_anim_core = make_rise_anim(start_x_t2, base_y_t2, chunk_duration, travel_dist, offset_x=0, offset_y=0)
                 
                 if show_shadow:
-                    t2_3d_layers = get_solid_3d_extrusion(word2_text, FONT, chunk_font_size, T2_3D, depth=9, margin_x=margin_x, margin_y=margin_y)
+                    t2_3d_layers = get_solid_3d_extrusion(word2_text, FONT, chunk_font_size, T2_3D, depth=int(shadow_depth), step_x=int(shadow_step_x), step_y=int(shadow_step_y), margin_x=margin_x, margin_y=margin_y)
                     for clip, ox, oy in t2_3d_layers:
                         c = clip.resized(lambda t: get_spring_scale(t)).rotated(lambda t: get_entry_tilt(t), expand=True)
                         t2_3d_anim = make_rise_anim(start_x_t2, base_y_t2, chunk_duration, travel_dist, offset_x=ox, offset_y=oy)
@@ -556,11 +642,20 @@ with gr.Blocks(title="Iman Gadzhi Studio Captions Pro", css=custom_css) as app:
                             t2_mid = gr.ColorPicker(label="Middle Stop", value="#FFFFFF")
                             t2_bot = gr.ColorPicker(label="Bottom Stop", value="#E2E8F0")
                             
-                with gr.TabItem("✨ 3. VFX & Rendering Engine"):
-                    gr.HTML("<p style='color: #94A3B8; font-size: 0.85rem; margin-bottom: 12px;'>Hardware acceleration and kinetic extrusion settings.</p>")
-                    show_shadow = gr.Checkbox(label="🧊 Render 3D Extruded Block Shadow (Punchy 9-Layer Depth)", value=True, elem_classes=["studio-checkbox"])
+                with gr.TabItem("✨ 3. VFX & Shadow Control Engine"):
+                    gr.HTML("<p style='color: #94A3B8; font-size: 0.85rem; margin-bottom: 12px;'>Customize 3D extrusion depth, directional shadow steps, and per-line shadow colors.</p>")
+                    show_shadow = gr.Checkbox(label="🧊 Render 3D Extruded Block Shadow", value=True, elem_classes=["studio-checkbox"])
+                    with gr.Row():
+                        shadow_depth = gr.Slider(minimum=0, maximum=25, value=9, step=1, label="3D Extrusion Depth (Layers)", elem_classes=["studio-input"])
+                        shadow_step_x = gr.Slider(minimum=-5, maximum=5, value=1, step=1, label="Extrusion Direction X Step", elem_classes=["studio-input"])
+                        shadow_step_y = gr.Slider(minimum=-5, maximum=5, value=1, step=1, label="Extrusion Direction Y Step", elem_classes=["studio-input"])
+                    with gr.Row():
+                        t1_shadow = gr.ColorPicker(label="Top Line 3D Shadow Color", value="#3D1400")
+                        t2_shadow = gr.ColorPicker(label="Bottom Line 3D Shadow Color", value="#222225")
                     
-            render_btn = gr.Button("✨ RENDER STUDIO CAPTIONS", elem_classes=["primary-btn"])
+            with gr.Row():
+                preview_btn = gr.Button("🔍 LIVE STYLE PREVIEW (Instant Test Before Render)", elem_classes=["primary-btn"])
+                render_btn = gr.Button("✨ RENDER STUDIO CAPTIONS", elem_classes=["primary-btn"])
             
         # Right Panel: Broadcast Output Monitor
         with gr.Column(scale=6, elem_classes=["studio-panel"]):
@@ -570,19 +665,44 @@ with gr.Blocks(title="Iman Gadzhi Studio Captions Pro", css=custom_css) as app:
                 <span style="color: #64748B; font-size: 0.8rem; font-family: monospace;">COLORSPACE: RGB #00FF00</span>
             </div>
             """)
-            output_video = gr.Video(label="Chroma Key Green Screen Output", interactive=False, elem_classes=["studio-input"])
+            with gr.Tabs():
+                with gr.TabItem("🔍 Live Style Preview (Instant Sample)"):
+                    style_preview_img = gr.Image(label="Typography & VFX Sample Preview", type="filepath", elem_classes=["studio-input"])
+                with gr.TabItem("🎬 Final Video Output (Green Screen)"):
+                    output_video = gr.Video(label="Chroma Key Green Screen Output", interactive=False, elem_classes=["studio-input"])
             
             gr.HTML("""
             <div style="background: #1A1E29; border: 1px solid #283042; border-radius: 8px; padding: 16px; margin-top: 16px;">
                 <div style="color: #FF5A36; font-weight: 700; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px;">💡 Editor Workflow Guide</div>
                 <ol style="color: #CBD5E1; font-size: 0.85rem; margin: 0; padding-left: 18px; line-height: 1.6;">
-                    <li>Place original video on <b>Track 1</b> and this output on <b>Track 2</b>.</li>
-                    <li>Align using the preserved timeline audio waveforms.</li>
+                    <li>Use <b>Live Style Preview</b> to test your fonts, colors, specular sheen, and 3D shadows instantly.</li>
+                    <li>Place original video on <b>Track 1</b> and rendered output on <b>Track 2</b>.</li>
                     <li>Apply <b>Ultra Key / Chroma Key</b> effect to Track 2 and sample the <font color="#00FF66"><b>#00FF00</b></font> green background.</li>
                 </ol>
             </div>
             """)
             
+    preview_btn.click(
+        fn=generate_style_preview_gui,
+        inputs=[
+            font_upload, 
+            font_size_slider, 
+            show_shadow, 
+            shadow_depth,
+            shadow_step_x,
+            shadow_step_y,
+            t1_top, 
+            t1_mid, 
+            t1_bot, 
+            t1_shadow,
+            t2_top, 
+            t2_mid, 
+            t2_bot,
+            t2_shadow
+        ],
+        outputs=[style_preview_img]
+    )
+
     render_btn.click(
         fn=render_video_gui,
         inputs=[
@@ -592,12 +712,17 @@ with gr.Blocks(title="Iman Gadzhi Studio Captions Pro", css=custom_css) as app:
             font_upload, 
             font_size_slider, 
             show_shadow, 
+            shadow_depth,
+            shadow_step_x,
+            shadow_step_y,
             t1_top, 
             t1_mid, 
             t1_bot, 
+            t1_shadow,
             t2_top, 
             t2_mid, 
-            t2_bot
+            t2_bot,
+            t2_shadow
         ],
         outputs=[output_video]
     )
