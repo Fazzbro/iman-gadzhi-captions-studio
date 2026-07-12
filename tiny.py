@@ -66,7 +66,7 @@ def apply_wipe_filter(clip, duration=0.3, feather_width=35):
     return new_clip
 
 def make_gradient_text(text, font, font_size, color_top, color_mid, color_bottom, margin_x=20, margin_y=50):
-    """Generates text filled with a smooth 3-stop (top-mid-bottom) RGB gradient."""
+    """Generates premium studio text with specular top sheen, smooth Hermite 3-stop gradient, and inner bevel shading."""
     base = TextClip(text=text, font=font, font_size=font_size, color='white', margin=(margin_x, margin_y))
     mask = base.mask.get_frame(0)
     h, w = mask.shape
@@ -77,20 +77,39 @@ def make_gradient_text(text, font, font_size, color_top, color_mid, color_bottom
         effective_h = max(h - (margin_y * 2), 1)
         ratio = max(0.0, min(1.0, effective_y / effective_h))
         
+        # 1. Base 3-Stop Color Blend via Smooth Hermite Easing
         if ratio <= 0.5:
-            sub_ratio = ratio * 2.0
-            smooth = 0.5 - 0.5 * np.cos(sub_ratio * np.pi)
-            r = int(color_top[0] * (1 - smooth) + color_mid[0] * smooth)
-            g = int(color_top[1] * (1 - smooth) + color_mid[1] * smooth)
-            b = int(color_top[2] * (1 - smooth) + color_mid[2] * smooth)
+            t = ratio * 2.0
+            smooth = t * t * (3.0 - 2.0 * t)  # Cubic Hermite S-Curve
+            r = color_top[0] * (1.0 - smooth) + color_mid[0] * smooth
+            g = color_top[1] * (1.0 - smooth) + color_mid[1] * smooth
+            b = color_top[2] * (1.0 - smooth) + color_mid[2] * smooth
         else:
-            sub_ratio = (ratio - 0.5) * 2.0
-            smooth = 0.5 - 0.5 * np.cos(sub_ratio * np.pi)
-            r = int(color_mid[0] * (1 - smooth) + color_bottom[0] * smooth)
-            g = int(color_mid[1] * (1 - smooth) + color_bottom[1] * smooth)
-            b = int(color_mid[2] * (1 - smooth) + color_bottom[2] * smooth)
+            t = (ratio - 0.5) * 2.0
+            smooth = t * t * (3.0 - 2.0 * t)
+            r = color_mid[0] * (1.0 - smooth) + color_bottom[0] * smooth
+            g = color_mid[1] * (1.0 - smooth) + color_bottom[1] * smooth
+            b = color_mid[2] * (1.0 - smooth) + color_bottom[2] * smooth
             
-        grad[y, :, :] = [r, g, b]
+        # 2. Specular Top Sheen Highlight ("Shining" Glass Rim)
+        if ratio < 0.22:
+            shine = ((1.0 - (ratio / 0.22)) ** 1.8) * 0.42
+            r = r + (255.0 - r) * shine
+            g = g + (255.0 - g) * shine
+            b = b + (255.0 - b) * shine
+            
+        # 3. Inner Bevel Shading (Physical 3D Molded Depth near bottom edge)
+        if ratio > 0.82:
+            bevel_dark = 1.0 - (((ratio - 0.82) / 0.18) * 0.22)
+            r = r * bevel_dark
+            g = g * bevel_dark
+            b = b * bevel_dark
+            
+        grad[y, :, :] = [
+            int(max(0, min(255, r))),
+            int(max(0, min(255, g))),
+            int(max(0, min(255, b)))
+        ]
         
     try:
         mask_clip = ImageClip(mask, is_mask=True)
@@ -100,14 +119,19 @@ def make_gradient_text(text, font, font_size, color_top, color_mid, color_bottom
     return ImageClip(grad).with_mask(mask_clip)
 
 def get_solid_3d_extrusion(text, font, font_size, hex_color, depth=9, margin_x=20, margin_y=50):
-    """Generates stacked, progressively darkened layers to build a punchy 3D block shadow with faster render times."""
+    """Generates sculpted 3D block extrusion with ambient occlusion gradient plus a subtle contact drop shadow."""
     layers = []
     h_c = hex_color.lstrip('#')
     r, g, b = tuple(int(h_c[i:i+2], 16) for i in (0, 2, 4))
     
+    # Contact Ambient Shadow Layer at bottom back
+    contact_shadow = TextClip(text=text, font=font, font_size=font_size, color="#111116", margin=(margin_x, margin_y))
+    layers.append((contact_shadow, depth + 3, depth + 4))
+    
+    # Ambient Occlusion Extrusion Stack
     for i in range(depth, 0, -1):
-        darken = max(0.15, 1.0 - (i / depth) * 0.75)  # Steeper darkening on lower layers for punchy depth
-        c = f"#{int(r*darken):02x}{int(g*darken):02x}{int(b*darken):02x}"
+        ao_factor = max(0.18, 1.0 - ((i / depth) ** 1.2) * 0.72)
+        c = f"#{int(r*ao_factor):02x}{int(g*ao_factor):02x}{int(b*ao_factor):02x}"
         t = TextClip(text=text, font=font, font_size=font_size, color=c, margin=(margin_x, margin_y))
         layers.append((t, i, i))
     return layers
