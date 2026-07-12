@@ -65,9 +65,8 @@ def apply_wipe_filter(clip, duration=0.3, feather_width=35):
         new_clip.mask = clip.mask.transform(fl_filter)
     return new_clip
 
-def make_stroked_gradient_text(text, font, font_size, color_top, color_mid, color_bottom, stroke_color="#101015", stroke_width=5, margin_x=20, margin_y=50):
-    """Generates text filled with a smooth 3-stop RGB gradient surrounded by a crisp dark border stroke."""
-    t_stroke = TextClip(text=text, font=font, font_size=font_size, color=stroke_color, stroke_color=stroke_color, stroke_width=stroke_width, margin=(margin_x, margin_y))
+def make_gradient_text(text, font, font_size, color_top, color_mid, color_bottom, margin_x=20, margin_y=50):
+    """Generates text filled with a smooth 3-stop (top-mid-bottom) RGB gradient."""
     base = TextClip(text=text, font=font, font_size=font_size, color='white', margin=(margin_x, margin_y))
     mask = base.mask.get_frame(0)
     h, w = mask.shape
@@ -98,8 +97,7 @@ def make_stroked_gradient_text(text, font, font_size, color_top, color_mid, colo
     except TypeError:
         mask_clip = ImageClip(mask, ismask=True)
         
-    grad_clip = ImageClip(grad).with_mask(mask_clip)
-    return CompositeVideoClip([t_stroke, grad_clip.with_position("center")], size=t_stroke.size)
+    return ImageClip(grad).with_mask(mask_clip)
 
 def get_solid_3d_extrusion(text, font, font_size, hex_color, depth=9, margin_x=20, margin_y=50):
     """Generates stacked, progressively darkened layers to build a punchy 3D block shadow with faster render times."""
@@ -315,11 +313,11 @@ def render_video_gui(
                     c = apply_wipe_filter(clip, duration=wipe_dur, feather_width=35).with_start(start_time).with_end(end_time).with_position((start_x_t1 + ox, BASE_Y + oy))
                     video_layers.append(c)
                     
-            t1_core = make_stroked_gradient_text(word1_text, FONT, chunk_font_size, T1_TOP, T1_MID, T1_BOT, stroke_color="#101015", stroke_width=5, margin_x=margin_x, margin_y=margin_y)
+            t1_core = make_gradient_text(word1_text, FONT, chunk_font_size, T1_TOP, T1_MID, T1_BOT, margin_x=margin_x, margin_y=margin_y)
             t1_core = apply_wipe_filter(t1_core, duration=wipe_dur, feather_width=35).with_start(start_time).with_end(end_time).with_position((start_x_t1, BASE_Y))
             video_layers.append(t1_core)
             
-            # --- WORD 2 (Pop-in Rise + Kinetic Zoom Bounce + Rotational Tilt Overshoot + Crisp Stroke) ---
+            # --- WORD 2 (Pop-in Rise + Kinetic Zoom Bounce + Rotational Tilt Overshoot) ---
             if word2_text:
                 rise_anim_core = make_rise_anim(start_x_t2, BASE_Y, chunk_duration, travel_dist, offset_x=0, offset_y=0)
                 
@@ -331,7 +329,7 @@ def render_video_gui(
                         c = c.with_start(start_time).with_end(end_time).with_position(t2_3d_anim)
                         video_layers.append(c)
                         
-                t2_core = make_stroked_gradient_text(word2_text, FONT, chunk_font_size, T2_TOP, T2_MID, T2_BOT, stroke_color="#101015", stroke_width=5, margin_x=margin_x, margin_y=margin_y)
+                t2_core = make_gradient_text(word2_text, FONT, chunk_font_size, T2_TOP, T2_MID, T2_BOT, margin_x=margin_x, margin_y=margin_y)
                 t2_core = t2_core.resized(lambda t: get_spring_scale(t)).rotated(lambda t: get_entry_tilt(t), expand=True)
                 t2_core = t2_core.with_start(start_time).with_end(end_time).with_position(rise_anim_core)
                 video_layers.append(t2_core)
