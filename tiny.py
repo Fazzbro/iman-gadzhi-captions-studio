@@ -282,6 +282,7 @@ def render_video_gui(
     print("\n[AI Studio] Step 1: Loading media track...", flush=True)
     
     temp_audio = "temp_gui_audio.wav"
+    media_clip = None
     
     if has_video:
         print("[AI Studio] Mode: Video Input detected. Extracting audio...", flush=True)
@@ -293,10 +294,10 @@ def render_video_gui(
         duration = media_clip.duration
         audio_clip = media_clip.audio
         try:
-            audio_clip.write_audiofile(temp_audio, fps=16000, nbytes=2, codec='pcm_s16le', verbose=False, logger=None)
+            audio_clip.write_audiofile(temp_audio, fps=16000, nbytes=2, codec='pcm_s16le', logger=None)
         except Exception as e:
             print(f"[Warning] PCM export failed ({e}). Fallback to standard write...", flush=True)
-            audio_clip.write_audiofile(temp_audio, verbose=False, logger=None)
+            audio_clip.write_audiofile(temp_audio, logger=None)
     else:
         print("[AI Studio] Mode: Direct Audio Upload (Option B) detected...", flush=True)
         audio_clip = AudioFileClip(audio_path)
@@ -308,17 +309,21 @@ def render_video_gui(
         else:
             canvas_w, canvas_h = 1080, 1080
         try:
-            audio_clip.write_audiofile(temp_audio, fps=16000, nbytes=2, codec='pcm_s16le', verbose=False, logger=None)
+            audio_clip.write_audiofile(temp_audio, fps=16000, nbytes=2, codec='pcm_s16le', logger=None)
         except Exception as e:
             print(f"[Warning] PCM export failed ({e}). Fallback to standard write...", flush=True)
-            audio_clip.write_audiofile(temp_audio, verbose=False, logger=None)
+            audio_clip.write_audiofile(temp_audio, logger=None)
             
-    progress(0.2, desc="Running Faster-Whisper Word-Level Alignment...")
-    print("[AI Studio] Step 2: Transcribing audio with word-level timestamps...", flush=True)
-    result = transcribe_with_word_timestamps(temp_audio)
-    
-    # Clean up AI model from memory immediately
     device = "cuda" if torch.cuda.is_available() else "cpu"
+    print(f"[AI Studio] Step 2: Loading Whisper 'tiny' model on {device.upper()}...", flush=True)
+    progress(0.2, desc=f"Transcribing audio with whisper-timestamped ({device.upper()})...")
+    
+    if device == "cuda":
+        torch.cuda.empty_cache()
+        
+    model = whisper.load_model("tiny", device=device)
+    result = whisper.transcribe(model, temp_audio, language="en")
+    del model
     if device == "cuda":
         torch.cuda.empty_cache()
         
@@ -327,7 +332,8 @@ def render_video_gui(
     
     segments = result.get("segments", [])
     if not segments:
-        media_clip.close()
+        if media_clip is not None:
+            media_clip.close()
         raise gr.Error("No speech detected in the media. Please verify the audio level and try again.")
         
     progress(0.3, desc="Building Canvas & Typography Elements...")
@@ -476,7 +482,8 @@ def render_video_gui(
     
     final_video.close()
     green_bg.close()
-    media_clip.close()
+    if media_clip is not None:
+        media_clip.close()
     
     print(f"\n[AI Studio] SUCCESS! Rendered video output written to '{output_path}'!", flush=True)
     progress(1.0, desc="Done!")
