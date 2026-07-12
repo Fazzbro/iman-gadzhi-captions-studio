@@ -9,7 +9,6 @@ import gradio as gr
 import whisper_timestamped as whisper
 from moviepy import VideoFileClip, AudioFileClip, ColorClip, TextClip, CompositeVideoClip, ImageClip
 import numpy as np
-from scipy.ndimage import gaussian_filter
 import torch
 import os
 
@@ -23,8 +22,22 @@ def ease_out_back(progress):
     c3 = c1 + 1
     return 1 + c3 * ((progress - 1) ** 3) + c1 * ((progress - 1) ** 2)
 
-def apply_wipe_filter(clip, duration=0.3):
-    """Applies a smooth quadratic wipe transition from left to right."""
+def get_spring_scale(t, duration=0.25):
+    """Kinetic zoom bounce starting at 75%, overshooting to ~115%, settling at 100%."""
+    if t >= duration:
+        return 1.0
+    p = max(0.0, min(1.0, t / duration))
+    return 1.0 - 0.25 * ((1.0 - p) ** 3) + 1.5 * p * ((1.0 - p) ** 2)
+
+def get_entry_tilt(t, duration=0.25, start_angle=-2.8):
+    """Rotational tilt overshoot starting around -3 degrees and settling smoothly at 0 degrees."""
+    if t >= duration:
+        return 0.0
+    p = max(0.0, min(1.0, t / duration))
+    return start_angle * ((1.0 - p) ** 2)
+
+def apply_wipe_filter(clip, duration=0.3, feather_width=35):
+    """Applies a smooth quadratic wipe transition from left to right with horizontal alpha feathering."""
     def fl_filter(get_frame, t):
         frame = get_frame(t)
         progress = min(t / duration, 1.0)
@@ -33,6 +46,14 @@ def apply_wipe_filter(clip, duration=0.3):
         current_w = int(w * progress)
         new_frame = np.copy(frame)
         if current_w < w:
+            feather_start = max(0, current_w - feather_width)
+            if feather_start < current_w:
+                ramp = np.linspace(1.0, 0.0, current_w - feather_start)
+                if new_frame.ndim == 3:
+                    for c in range(new_frame.shape[2]):
+                        new_frame[:, feather_start:current_w, c] = (new_frame[:, feather_start:current_w, c] * ramp).astype(new_frame.dtype)
+                else:
+                    new_frame[:, feather_start:current_w] = (new_frame[:, feather_start:current_w] * ramp).astype(new_frame.dtype)
             if new_frame.ndim == 2:
                 new_frame[:, current_w:] = 0
             else:
@@ -44,8 +65,9 @@ def apply_wipe_filter(clip, duration=0.3):
         new_clip.mask = clip.mask.transform(fl_filter)
     return new_clip
 
-def make_gradient_text(text, font, font_size, color_top, color_mid, color_bottom, margin_x=20, margin_y=50):
-    """Generates text filled with a smooth 3-stop (top-mid-bottom) RGB gradient."""
+def make_stroked_gradient_text(text, font, font_size, color_top, color_mid, color_bottom, stroke_color="#101015", stroke_width=5, margin_x=20, margin_y=50):
+    """Generates text filled with a smooth 3-stop RGB gradient surrounded by a crisp dark border stroke."""
+    t_stroke = TextClip(text=text, font=font, font_size=font_size, color=stroke_color, stroke_color=stroke_color, stroke_width=stroke_width, margin=(margin_x, margin_y))
     base = TextClip(text=text, font=font, font_size=font_size, color='white', margin=(margin_x, margin_y))
     mask = base.mask.get_frame(0)
     h, w = mask.shape
@@ -76,41 +98,17 @@ def make_gradient_text(text, font, font_size, color_top, color_mid, color_bottom
     except TypeError:
         mask_clip = ImageClip(mask, ismask=True)
         
-    return ImageClip(grad).with_mask(mask_clip)
+    grad_clip = ImageClip(grad).with_mask(mask_clip)
+    return CompositeVideoClip([t_stroke, grad_clip.with_position("center")], size=t_stroke.size)
 
-def make_true_glow(text, font, font_size, glow_color_rgb, blur_radius=25, opacity=0.85, margin_x=20, margin_y=50):
-    """Generates a blurred neon glow backdrop by applying a Gaussian filter to text outline."""
-    base = TextClip(text=text, font=font, font_size=font_size, color='white', stroke_color='white', stroke_width=12, margin=(margin_x, margin_y))
-    mask = base.mask.get_frame(0)
-    
-    # Pad mask to prevent edge clipping during blur operation
-    pad = int(blur_radius * 2.5)
-    padded_mask = np.pad(mask, pad, mode='constant', constant_values=0)
-    blurred_mask = gaussian_filter(padded_mask, sigma=blur_radius)
-    
-    max_val = np.max(blurred_mask)
-    if max_val > 0:
-        blurred_mask = (blurred_mask / max_val) * opacity
-        
-    h, w = blurred_mask.shape
-    glow_rgb = np.zeros((h, w, 3), dtype=np.uint8)
-    glow_rgb[:, :] = glow_color_rgb
-    
-    try:
-        mask_clip = ImageClip(blurred_mask, is_mask=True)
-    except TypeError:
-        mask_clip = ImageClip(blurred_mask, ismask=True)
-        
-    return ImageClip(glow_rgb).with_mask(mask_clip), pad
-
-def get_solid_3d_extrusion(text, font, font_size, hex_color, depth=12, margin_x=20, margin_y=50):
-    """Generates stacked, progressively darkened layers to build a clean 3D block shadow."""
+def get_solid_3d_extrusion(text, font, font_size, hex_color, depth=9, margin_x=20, margin_y=50):
+    """Generates stacked, progressively darkened layers to build a punchy 3D block shadow with faster render times."""
     layers = []
     h_c = hex_color.lstrip('#')
     r, g, b = tuple(int(h_c[i:i+2], 16) for i in (0, 2, 4))
     
     for i in range(depth, 0, -1):
-        darken = 1.0 - (i / depth) * 0.6  # Darken lower layers for depth shading
+        darken = max(0.15, 1.0 - (i / depth) * 0.75)  # Steeper darkening on lower layers for punchy depth
         c = f"#{int(r*darken):02x}{int(g*darken):02x}{int(b*darken):02x}"
         t = TextClip(text=text, font=font, font_size=font_size, color=c, margin=(margin_x, margin_y))
         layers.append((t, i, i))
@@ -124,7 +122,7 @@ def hex_to_rgb(hex_color):
 def make_rise_anim(base_x, base_y, chunk_duration, travel_dist, offset_x=0, offset_y=0):
     """Constructs position callback function for the pop-in rise animation."""
     def anim(t):
-        anim_dur = min(0.35, chunk_duration)
+        anim_dur = min(0.25, chunk_duration)
         progress = min(t / anim_dur, 1.0)
         eased = ease_out_back(progress) if progress < 1.0 else 1.0
         start_y = base_y + travel_dist
@@ -144,7 +142,6 @@ def render_video_gui(
     font_file, 
     font_size, 
     show_shadow, 
-    show_glow, 
     t1_top_hex, 
     t1_mid_hex, 
     t1_bot_hex, 
@@ -246,13 +243,11 @@ def render_video_gui(
     T1_TOP = hex_to_rgb(t1_top_hex)
     T1_MID = hex_to_rgb(t1_mid_hex)
     T1_BOT = hex_to_rgb(t1_bot_hex)
-    T1_GLOW = T1_MID
     T1_3D = "#333335"
     
     T2_TOP = hex_to_rgb(t2_top_hex)
     T2_MID = hex_to_rgb(t2_mid_hex)
     T2_BOT = hex_to_rgb(t2_bot_hex)
-    T2_GLOW = T2_MID
     T2_3D = "#4A1800"
     
     progress(0.4, desc="Compositing Graphic & Animation Layers...")
@@ -313,40 +308,31 @@ def render_video_gui(
             wipe_dur = min(0.35, chunk_duration * 0.8)
             travel_dist = int(chunk_font_size * 1.1)
             
-            # --- WORD 1 (Wipe Animation) ---
-            if show_glow:
-                t1_glow, t1_pad = make_true_glow(word1_text, FONT, chunk_font_size, T1_GLOW, blur_radius=20, opacity=0.4, margin_x=margin_x, margin_y=margin_y)
-                t1_glow = apply_wipe_filter(t1_glow, duration=wipe_dur).with_start(start_time).with_end(end_time).with_position((start_x_t1 - t1_pad, BASE_Y - t1_pad))
-                video_layers.append(t1_glow)
-                
+            # --- WORD 1 (Soft Feathered Wipe + Crisp Border Stroke + Punchy 3D Shadow) ---
             if show_shadow:
-                t1_3d_layers = get_solid_3d_extrusion(word1_text, FONT, chunk_font_size, T1_3D, depth=8, margin_x=margin_x, margin_y=margin_y)
+                t1_3d_layers = get_solid_3d_extrusion(word1_text, FONT, chunk_font_size, T1_3D, depth=9, margin_x=margin_x, margin_y=margin_y)
                 for clip, ox, oy in t1_3d_layers:
-                    c = apply_wipe_filter(clip, duration=wipe_dur).with_start(start_time).with_end(end_time).with_position((start_x_t1 + ox, BASE_Y + oy))
+                    c = apply_wipe_filter(clip, duration=wipe_dur, feather_width=35).with_start(start_time).with_end(end_time).with_position((start_x_t1 + ox, BASE_Y + oy))
                     video_layers.append(c)
                     
-            t1_core = make_gradient_text(word1_text, FONT, chunk_font_size, T1_TOP, T1_MID, T1_BOT, margin_x=margin_x, margin_y=margin_y)
-            t1_core = apply_wipe_filter(t1_core, duration=wipe_dur).with_start(start_time).with_end(end_time).with_position((start_x_t1, BASE_Y))
+            t1_core = make_stroked_gradient_text(word1_text, FONT, chunk_font_size, T1_TOP, T1_MID, T1_BOT, stroke_color="#101015", stroke_width=5, margin_x=margin_x, margin_y=margin_y)
+            t1_core = apply_wipe_filter(t1_core, duration=wipe_dur, feather_width=35).with_start(start_time).with_end(end_time).with_position((start_x_t1, BASE_Y))
             video_layers.append(t1_core)
             
-            # --- WORD 2 (Pop-in Rise Animation) ---
+            # --- WORD 2 (Pop-in Rise + Kinetic Zoom Bounce + Rotational Tilt Overshoot + Crisp Stroke) ---
             if word2_text:
                 rise_anim_core = make_rise_anim(start_x_t2, BASE_Y, chunk_duration, travel_dist, offset_x=0, offset_y=0)
                 
-                if show_glow:
-                    t2_glow, t2_pad = make_true_glow(word2_text, FONT, chunk_font_size, T2_GLOW, blur_radius=35, opacity=0.9, margin_x=margin_x, margin_y=margin_y)
-                    t2_glow_anim = make_rise_anim(start_x_t2, BASE_Y, chunk_duration, travel_dist, offset_x=-t2_pad, offset_y=-t2_pad)
-                    t2_glow = t2_glow.with_start(start_time).with_end(end_time).with_position(t2_glow_anim)
-                    video_layers.append(t2_glow)
-                    
                 if show_shadow:
-                    t2_3d_layers = get_solid_3d_extrusion(word2_text, FONT, chunk_font_size, T2_3D, depth=14, margin_x=margin_x, margin_y=margin_y)
+                    t2_3d_layers = get_solid_3d_extrusion(word2_text, FONT, chunk_font_size, T2_3D, depth=9, margin_x=margin_x, margin_y=margin_y)
                     for clip, ox, oy in t2_3d_layers:
+                        c = clip.resized(lambda t: get_spring_scale(t)).rotated(lambda t: get_entry_tilt(t), expand=True)
                         t2_3d_anim = make_rise_anim(start_x_t2, BASE_Y, chunk_duration, travel_dist, offset_x=ox, offset_y=oy)
-                        c = clip.with_start(start_time).with_end(end_time).with_position(t2_3d_anim)
+                        c = c.with_start(start_time).with_end(end_time).with_position(t2_3d_anim)
                         video_layers.append(c)
                         
-                t2_core = make_gradient_text(word2_text, FONT, chunk_font_size, T2_TOP, T2_MID, T2_BOT, margin_x=margin_x, margin_y=margin_y)
+                t2_core = make_stroked_gradient_text(word2_text, FONT, chunk_font_size, T2_TOP, T2_MID, T2_BOT, stroke_color="#101015", stroke_width=5, margin_x=margin_x, margin_y=margin_y)
+                t2_core = t2_core.resized(lambda t: get_spring_scale(t)).rotated(lambda t: get_entry_tilt(t), expand=True)
                 t2_core = t2_core.with_start(start_time).with_end(end_time).with_position(rise_anim_core)
                 video_layers.append(t2_core)
                 
@@ -535,8 +521,7 @@ with gr.Blocks(title="Iman Gadzhi Studio Captions Pro", css=custom_css) as app:
                             
                 with gr.TabItem("✨ 3. VFX & Rendering Engine"):
                     gr.HTML("<p style='color: #94A3B8; font-size: 0.85rem; margin-bottom: 12px;'>Hardware acceleration and kinetic extrusion settings.</p>")
-                    show_shadow = gr.Checkbox(label="🧊 Render 3D Extruded Block Shadow (14-Layer Darkening)", value=True, elem_classes=["studio-checkbox"])
-                    show_glow = gr.Checkbox(label="✨ Render Neon Gaussian Back-Glow (Tied to Middle Stop Color)", value=True, elem_classes=["studio-checkbox"])
+                    show_shadow = gr.Checkbox(label="🧊 Render 3D Extruded Block Shadow (Punchy 9-Layer Depth)", value=True, elem_classes=["studio-checkbox"])
                     
             render_btn = gr.Button("✨ RENDER STUDIO CAPTIONS", elem_classes=["primary-btn"])
             
@@ -570,7 +555,6 @@ with gr.Blocks(title="Iman Gadzhi Studio Captions Pro", css=custom_css) as app:
             font_upload, 
             font_size_slider, 
             show_shadow, 
-            show_glow, 
             t1_top, 
             t1_mid, 
             t1_bot, 
