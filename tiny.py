@@ -65,8 +65,8 @@ def apply_wipe_filter(clip, duration=0.3, feather_width=35):
         new_clip.mask = clip.mask.transform(fl_filter)
     return new_clip
 
-def make_gradient_text(text, font, font_size, color_top, color_mid, color_bottom, margin_x=20, margin_y=50):
-    """Generates premium studio text with specular top sheen, smooth Hermite 3-stop gradient, and inner bevel shading."""
+def make_gradient_text(text, font, font_size, color_top, color_mid, color_bottom, gloss_intensity=1.2, margin_x=20, margin_y=50):
+    """Generates premium studio text with intense dual-layer specular gloss, smooth Hermite 3-stop gradient, and inner bevel shading."""
     base = TextClip(text=text, font=font, font_size=font_size, color='white', margin=(margin_x, margin_y))
     mask = base.mask.get_frame(0)
     h, w = mask.shape
@@ -91,16 +91,25 @@ def make_gradient_text(text, font, font_size, color_top, color_mid, color_bottom
             g = color_mid[1] * (1.0 - smooth) + color_bottom[1] * smooth
             b = color_mid[2] * (1.0 - smooth) + color_bottom[2] * smooth
             
-        # 2. Specular Top Sheen Highlight ("Shining" Glass Rim)
-        if ratio < 0.22:
-            shine = ((1.0 - (ratio / 0.22)) ** 1.8) * 0.42
-            r = r + (255.0 - r) * shine
-            g = g + (255.0 - g) * shine
-            b = b + (255.0 - b) * shine
+        # 2. Premium Studio Glass & Metallic Specular Gloss (Controlled by gloss_intensity)
+        if gloss_intensity > 0:
+            # Top Sharp Glass Rim (Top 18%) - Brilliant specular rim highlight
+            if ratio < 0.18:
+                rim_shine = ((1.0 - (ratio / 0.18)) ** 1.3) * 0.85 * float(gloss_intensity)
+                r = r + (255.0 - r) * min(1.0, rim_shine)
+                g = g + (255.0 - g) * min(1.0, rim_shine)
+                b = b + (255.0 - b) * min(1.0, rim_shine)
+                
+            # Acrylic / Metallic Mid-Body Sheen (Upper 48% specular reflection)
+            if ratio < 0.48:
+                body_shine = ((1.0 - (ratio / 0.48)) ** 1.6) * 0.42 * float(gloss_intensity)
+                r = r + (255.0 - r) * min(1.0, body_shine)
+                g = g + (255.0 - g) * min(1.0, body_shine)
+                b = b + (255.0 - b) * min(1.0, body_shine)
             
         # 3. Inner Bevel Shading (Physical 3D Molded Depth near bottom edge)
-        if ratio > 0.82:
-            bevel_dark = 1.0 - (((ratio - 0.82) / 0.18) * 0.22)
+        if ratio > 0.80:
+            bevel_dark = 1.0 - (((ratio - 0.80) / 0.20) * 0.28)
             r = r * bevel_dark
             g = g * bevel_dark
             b = b * bevel_dark
@@ -174,7 +183,8 @@ def generate_style_preview_gui(
     show_shadow, 
     shadow_depth, 
     shadow_step_x, 
-    shadow_step_y, 
+    shadow_step_y,
+    gloss_intensity,
     t1_top_hex, 
     t1_mid_hex, 
     t1_bot_hex, 
@@ -226,10 +236,10 @@ def generate_style_preview_gui(
         for clip, ox, oy in t2_3d:
             alpha_composite_onto(canvas, clip, start_x_t2 + ox, base_y_t2 + oy)
             
-    t1_core = make_gradient_text(text1, FONT, FONT_SIZE, hex_to_rgb(t1_top_hex), hex_to_rgb(t1_mid_hex), hex_to_rgb(t1_bot_hex), margin_x=margin_x, margin_y=margin_y)
+    t1_core = make_gradient_text(text1, FONT, FONT_SIZE, hex_to_rgb(t1_top_hex), hex_to_rgb(t1_mid_hex), hex_to_rgb(t1_bot_hex), gloss_intensity=float(gloss_intensity), margin_x=margin_x, margin_y=margin_y)
     alpha_composite_onto(canvas, t1_core, start_x_t1, base_y_t1)
     
-    t2_core = make_gradient_text(text2, FONT, FONT_SIZE, hex_to_rgb(t2_top_hex), hex_to_rgb(t2_mid_hex), hex_to_rgb(t2_bot_hex), margin_x=margin_x, margin_y=margin_y)
+    t2_core = make_gradient_text(text2, FONT, FONT_SIZE, hex_to_rgb(t2_top_hex), hex_to_rgb(t2_mid_hex), hex_to_rgb(t2_bot_hex), gloss_intensity=float(gloss_intensity), margin_x=margin_x, margin_y=margin_y)
     alpha_composite_onto(canvas, t2_core, start_x_t2, base_y_t2)
     
     preview_path = "live_style_preview.png"
@@ -262,6 +272,7 @@ def render_video_gui(
     shadow_depth,
     shadow_step_x,
     shadow_step_y,
+    gloss_intensity,
     t1_top_hex, 
     t1_mid_hex, 
     t1_bot_hex, 
@@ -444,7 +455,7 @@ def render_video_gui(
                     c = apply_wipe_filter(clip, duration=wipe_dur, feather_width=35).with_start(start_time).with_end(end_time).with_position((start_x_t1 + ox, base_y_t1 + oy))
                     video_layers.append(c)
                     
-            t1_core = make_gradient_text(word1_text, FONT, chunk_font_size, T1_TOP, T1_MID, T1_BOT, margin_x=margin_x, margin_y=margin_y)
+            t1_core = make_gradient_text(word1_text, FONT, chunk_font_size, T1_TOP, T1_MID, T1_BOT, gloss_intensity=float(gloss_intensity), margin_x=margin_x, margin_y=margin_y)
             t1_core = apply_wipe_filter(t1_core, duration=wipe_dur, feather_width=35).with_start(start_time).with_end(end_time).with_position((start_x_t1, base_y_t1))
             video_layers.append(t1_core)
             
@@ -460,7 +471,7 @@ def render_video_gui(
                         c = c.with_start(start_time).with_end(end_time).with_position(t2_3d_anim)
                         video_layers.append(c)
                         
-                t2_core = make_gradient_text(word2_text, FONT, chunk_font_size, T2_TOP, T2_MID, T2_BOT, margin_x=margin_x, margin_y=margin_y)
+                t2_core = make_gradient_text(word2_text, FONT, chunk_font_size, T2_TOP, T2_MID, T2_BOT, gloss_intensity=float(gloss_intensity), margin_x=margin_x, margin_y=margin_y)
                 t2_core = t2_core.resized(lambda t: get_spring_scale(t)).rotated(lambda t: get_entry_tilt(t), expand=True)
                 t2_core = t2_core.with_start(start_time).with_end(end_time).with_position(rise_anim_core)
                 video_layers.append(t2_core)
@@ -650,7 +661,8 @@ with gr.Blocks(title="Iman Gadzhi Studio Captions Pro", css=custom_css) as app:
                             t2_bot = gr.ColorPicker(label="Bottom Stop", value="#E2E8F0")
                             
                 with gr.TabItem("✨ 3. VFX & Shadow Control Engine"):
-                    gr.HTML("<p style='color: #94A3B8; font-size: 0.85rem; margin-bottom: 12px;'>Customize 3D extrusion depth, directional shadow steps, and per-line shadow colors.</p>")
+                    gr.HTML("<p style='color: #94A3B8; font-size: 0.85rem; margin-bottom: 12px;'>Customize specular gloss sheen, 3D extrusion depth, and directional shadow steps.</p>")
+                    gloss_intensity = gr.Slider(minimum=0.0, maximum=2.5, value=1.4, step=0.1, label="✨ Specular Gloss & Sheen Intensity (1.4 = Studio Gloss, 2.5 = Ultra Metallic Shine)", elem_classes=["studio-input"])
                     show_shadow = gr.Checkbox(label="🧊 Render 3D Extruded Block Shadow", value=True, elem_classes=["studio-checkbox"])
                     with gr.Row():
                         shadow_depth = gr.Slider(minimum=0, maximum=25, value=9, step=1, label="3D Extrusion Depth (Layers)", elem_classes=["studio-input"])
@@ -698,6 +710,7 @@ with gr.Blocks(title="Iman Gadzhi Studio Captions Pro", css=custom_css) as app:
             shadow_depth,
             shadow_step_x,
             shadow_step_y,
+            gloss_intensity,
             t1_top, 
             t1_mid, 
             t1_bot, 
@@ -722,6 +735,7 @@ with gr.Blocks(title="Iman Gadzhi Studio Captions Pro", css=custom_css) as app:
             shadow_depth,
             shadow_step_x,
             shadow_step_y,
+            gloss_intensity,
             t1_top, 
             t1_mid, 
             t1_bot, 
