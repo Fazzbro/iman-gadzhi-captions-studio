@@ -241,12 +241,18 @@ def render_video_gui(
     T1_TOP = hex_to_rgb(t1_top_hex)
     T1_MID = hex_to_rgb(t1_mid_hex)
     T1_BOT = hex_to_rgb(t1_bot_hex)
-    T1_3D = "#333335"
+    T1_3D = "#3D1400"
     
     T2_TOP = hex_to_rgb(t2_top_hex)
     T2_MID = hex_to_rgb(t2_mid_hex)
     T2_BOT = hex_to_rgb(t2_bot_hex)
-    T2_3D = "#4A1800"
+    T2_3D = "#222225"
+    
+    def format_caption_text(s):
+        s = s.strip()
+        if not s:
+            return ""
+        return s[0].upper() + s[1:]
     
     progress(0.4, desc="Compositing Graphic & Animation Layers...")
     
@@ -255,18 +261,22 @@ def render_video_gui(
         if not words_list:
             continue
             
-        for i in range(0, len(words_list), 2):
-            chunk = words_list[i:i+2]
+        for i in range(0, len(words_list), 4):
+            chunk = words_list[i:i+4]
             start_time = chunk[0]["start"]
             end_time = chunk[-1]["end"]
             chunk_duration = end_time - start_time
             if chunk_duration <= 0:
                 chunk_duration = 0.1
                 
-            word1_text = chunk[0]["text"].upper() + " "
-            word2_text = chunk[1]["text"].upper() if len(chunk) > 1 else ""
+            if len(chunk) <= 2:
+                word1_text = format_caption_text(chunk[0]["text"])
+                word2_text = format_caption_text(chunk[1]["text"]) if len(chunk) > 1 else ""
+            else:
+                mid_idx = (len(chunk) + 1) // 2
+                word1_text = format_caption_text(" ".join(w["text"].strip() for w in chunk[:mid_idx]))
+                word2_text = format_caption_text(" ".join(w["text"].strip() for w in chunk[mid_idx:]))
             
-            # Auto-scaling logic to prevent text overflowing the video width
             chunk_font_size = FONT_SIZE
             margin_x = 20
             margin_y = 50
@@ -284,48 +294,53 @@ def render_video_gui(
                     print(f"[Error] TextClip sizing failed completely: {e2}", flush=True)
                     continue
             
-            total_width = w1 + w2
+            max_line_w = max(w1, w2)
             max_allowed_w = int(canvas_w * 0.9)
             
-            # Linear scaling helper if bounds are exceeded
-            if total_width > max_allowed_w:
-                scale_factor = max_allowed_w / total_width
+            if max_line_w > max_allowed_w:
+                scale_factor = max_allowed_w / max_line_w
                 chunk_font_size = int(chunk_font_size * scale_factor)
                 margin_x = int(20 * scale_factor)
                 margin_y = int(50 * scale_factor)
                 try:
                     w1 = TextClip(text=word1_text, font=FONT, font_size=chunk_font_size, margin=(margin_x, margin_y)).size[0]
                     w2 = TextClip(text=word2_text, font=FONT, font_size=chunk_font_size, margin=(margin_x, margin_y)).size[0] if word2_text else 0
-                    total_width = w1 + w2
                 except Exception as e:
                     print(f"[Warning] Dynamic resizing calculation failed: {e}", flush=True)
             
-            start_x_t1 = (canvas_w - total_width) // 2
-            start_x_t2 = start_x_t1 + w1 - int(30 * (chunk_font_size / FONT_SIZE) if FONT_SIZE > 0 else 30)
+            start_x_t1 = (canvas_w - w1) // 2
+            start_x_t2 = (canvas_w - w2) // 2
+            
+            if word2_text:
+                base_y_t1 = BASE_Y - int(chunk_font_size * 0.52)
+                base_y_t2 = BASE_Y + int(chunk_font_size * 0.42)
+            else:
+                base_y_t1 = BASE_Y
+                base_y_t2 = BASE_Y
             
             wipe_dur = min(0.35, chunk_duration * 0.8)
             travel_dist = int(chunk_font_size * 1.1)
             
-            # --- WORD 1 (Soft Feathered Wipe + Crisp Border Stroke + Punchy 3D Shadow) ---
+            # --- LINE 1 (Top Line: Orange Gradient + Soft Feathered Wipe + 3D Shadow) ---
             if show_shadow:
                 t1_3d_layers = get_solid_3d_extrusion(word1_text, FONT, chunk_font_size, T1_3D, depth=9, margin_x=margin_x, margin_y=margin_y)
                 for clip, ox, oy in t1_3d_layers:
-                    c = apply_wipe_filter(clip, duration=wipe_dur, feather_width=35).with_start(start_time).with_end(end_time).with_position((start_x_t1 + ox, BASE_Y + oy))
+                    c = apply_wipe_filter(clip, duration=wipe_dur, feather_width=35).with_start(start_time).with_end(end_time).with_position((start_x_t1 + ox, base_y_t1 + oy))
                     video_layers.append(c)
                     
             t1_core = make_gradient_text(word1_text, FONT, chunk_font_size, T1_TOP, T1_MID, T1_BOT, margin_x=margin_x, margin_y=margin_y)
-            t1_core = apply_wipe_filter(t1_core, duration=wipe_dur, feather_width=35).with_start(start_time).with_end(end_time).with_position((start_x_t1, BASE_Y))
+            t1_core = apply_wipe_filter(t1_core, duration=wipe_dur, feather_width=35).with_start(start_time).with_end(end_time).with_position((start_x_t1, base_y_t1))
             video_layers.append(t1_core)
             
-            # --- WORD 2 (Pop-in Rise + Kinetic Zoom Bounce + Rotational Tilt Overshoot) ---
+            # --- LINE 2 (Bottom Line: Crisp White + Pop-in Rise + Kinetic Zoom Bounce + Rotational Tilt) ---
             if word2_text:
-                rise_anim_core = make_rise_anim(start_x_t2, BASE_Y, chunk_duration, travel_dist, offset_x=0, offset_y=0)
+                rise_anim_core = make_rise_anim(start_x_t2, base_y_t2, chunk_duration, travel_dist, offset_x=0, offset_y=0)
                 
                 if show_shadow:
                     t2_3d_layers = get_solid_3d_extrusion(word2_text, FONT, chunk_font_size, T2_3D, depth=9, margin_x=margin_x, margin_y=margin_y)
                     for clip, ox, oy in t2_3d_layers:
                         c = clip.resized(lambda t: get_spring_scale(t)).rotated(lambda t: get_entry_tilt(t), expand=True)
-                        t2_3d_anim = make_rise_anim(start_x_t2, BASE_Y, chunk_duration, travel_dist, offset_x=ox, offset_y=oy)
+                        t2_3d_anim = make_rise_anim(start_x_t2, base_y_t2, chunk_duration, travel_dist, offset_x=ox, offset_y=oy)
                         c = c.with_start(start_time).with_end(end_time).with_position(t2_3d_anim)
                         video_layers.append(c)
                         
@@ -504,18 +519,18 @@ with gr.Blocks(title="Iman Gadzhi Studio Captions Pro", css=custom_css) as app:
                 with gr.TabItem("🎨 2. 3-Stop Color Palettes"):
                     gr.HTML("<p style='color: #94A3B8; font-size: 0.85rem; margin-bottom: 12px;'>Configure 3-stop (Top ➔ Middle ➔ Bottom) RGB gradients for dual-word kinetic animation.</p>")
                     with gr.Group(elem_classes=["color-box"]):
-                        gr.HTML("<div style='color: #F8FAFC; font-weight: 600; font-size: 0.9rem; margin-bottom: 8px;'>💬 Context Word Palette (Word 1)</div>")
+                        gr.HTML("<div style='color: #FF7300; font-weight: 600; font-size: 0.9rem; margin-bottom: 8px;'>🔥 Top Line Palette (Orange Gradient)</div>")
                         with gr.Row():
-                            t1_top = gr.ColorPicker(label="Top Stop", value="#FFFFFF")
-                            t1_mid = gr.ColorPicker(label="Middle Stop", value="#E0E0EB")
-                            t1_bot = gr.ColorPicker(label="Bottom Stop", value="#A0A0B0")
+                            t1_top = gr.ColorPicker(label="Top Stop", value="#FFBD59")
+                            t1_mid = gr.ColorPicker(label="Middle Stop", value="#FF7300")
+                            t1_bot = gr.ColorPicker(label="Bottom Stop", value="#E53900")
                             
                     with gr.Group(elem_classes=["color-box"]):
-                        gr.HTML("<div style='color: #FF9E00; font-weight: 600; font-size: 0.9rem; margin-bottom: 8px;'>🔥 Punch Word Palette (Word 2)</div>")
+                        gr.HTML("<div style='color: #F8FAFC; font-weight: 600; font-size: 0.9rem; margin-bottom: 8px;'>💬 Bottom Line Palette (Studio White)</div>")
                         with gr.Row():
-                            t2_top = gr.ColorPicker(label="Top Stop", value="#FFF500")
-                            t2_mid = gr.ColorPicker(label="Middle Stop", value="#FF9E00")
-                            t2_bot = gr.ColorPicker(label="Bottom Stop", value="#FF4100")
+                            t2_top = gr.ColorPicker(label="Top Stop", value="#FFFFFF")
+                            t2_mid = gr.ColorPicker(label="Middle Stop", value="#FFFFFF")
+                            t2_bot = gr.ColorPicker(label="Bottom Stop", value="#E2E8F0")
                             
                 with gr.TabItem("✨ 3. VFX & Rendering Engine"):
                     gr.HTML("<p style='color: #94A3B8; font-size: 0.85rem; margin-bottom: 12px;'>Hardware acceleration and kinetic extrusion settings.</p>")
