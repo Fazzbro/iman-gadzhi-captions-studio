@@ -177,6 +177,35 @@ def alpha_composite_onto(canvas, clip, pos_x, pos_y):
         sub_rgb * sub_alpha + canvas[y1:y2, x1:x2] * (1.0 - sub_alpha)
     ).astype(np.uint8)
 
+def resolve_sans_serif_bold_font(custom_font_file=None):
+    """Resolves font to user uploaded custom font or default Sans-Serif Bold font."""
+    if custom_font_file and os.path.exists(str(custom_font_file)):
+        return str(custom_font_file)
+        
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    local_poppins = os.path.join(script_dir, "Poppins-Bold.ttf")
+    if os.path.exists(local_poppins):
+        return local_poppins
+    if os.path.exists("Poppins-Bold.ttf"):
+        return "Poppins-Bold.ttf"
+        
+    system_candidates = [
+        r"C:\Windows\Fonts\arialbd.ttf",       # Windows Arial Bold
+        r"C:\Windows\Fonts\segoeuib.ttf",      # Windows Segoe UI Bold
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", # Linux DejaVu Sans Bold
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", # Linux Liberation Sans Bold
+        "DejaVuSans-Bold",
+        "LiberationSans-Bold",
+        "Arial-Bold",
+        "Arial-BoldMT",
+        "Arial"
+    ]
+    for candidate in system_candidates:
+        if os.path.exists(candidate):
+            return candidate
+            
+    return "Arial-Bold"
+
 def generate_style_preview_gui(
     font_file, 
     font_size, 
@@ -200,12 +229,7 @@ def generate_style_preview_gui(
     # Create sleek dark studio background slate
     canvas = np.full((canvas_h, canvas_w, 3), [15, 23, 42], dtype=np.uint8)
     
-    if font_file and os.path.exists(font_file):
-        FONT = font_file
-    elif os.path.exists("Poppins-Bold.ttf"):
-        FONT = "Poppins-Bold.ttf"
-    else:
-        FONT = "Arial"
+    FONT = resolve_sans_serif_bold_font(font_file)
         
     FONT_SIZE = int(font_size)
     margin_x = 20
@@ -218,7 +242,7 @@ def generate_style_preview_gui(
         w1 = TextClip(text=text1, font=FONT, font_size=FONT_SIZE, margin=(margin_x, margin_y)).size[0]
         w2 = TextClip(text=text2, font=FONT, font_size=FONT_SIZE, margin=(margin_x, margin_y)).size[0]
     except Exception:
-        FONT = "Impact"
+        FONT = resolve_sans_serif_bold_font(None)
         w1 = TextClip(text=text1, font=FONT, font_size=FONT_SIZE, margin=(margin_x, margin_y)).size[0]
         w2 = TextClip(text=text2, font=FONT, font_size=FONT_SIZE, margin=(margin_x, margin_y)).size[0]
         
@@ -354,13 +378,9 @@ def render_video_gui(
     green_bg = ColorClip(size=(canvas_w, canvas_h), color=(0, 255, 0), duration=duration)
     video_layers = [green_bg]
     
-    # Select font: custom, workspace fallback, or system fallback
-    if font_file and os.path.exists(font_file):
-        FONT = font_file
-    elif os.path.exists("Poppins-Bold.ttf"):
-        FONT = "Poppins-Bold.ttf"
-    else:
-        FONT = "Arial"
+    # Select font: custom upload or default sans-serif bold
+    FONT = resolve_sans_serif_bold_font(font_file)
+    print(f"[AI Studio] Resolved typography font: {FONT}", flush=True)
         
     FONT_SIZE = int(font_size)
     BASE_Y = int(canvas_h * 0.6)  # Set captions in the lower third
@@ -641,7 +661,7 @@ with gr.Blocks(title="Iman Gadzhi Studio Captions Pro", css=custom_css) as app:
                         elem_classes=["studio-input"]
                     )
                     with gr.Row():
-                        font_upload = gr.File(label="Custom Typography Font (.ttf/.otf)", file_types=[".ttf", ".otf"], type="filepath", elem_classes=["studio-input"])
+                        font_upload = gr.File(label="Optional: Custom Font (.ttf/.otf) [Default: Sans-Serif Bold]", file_types=[".ttf", ".otf"], type="filepath", elem_classes=["studio-input"])
                         font_size_slider = gr.Slider(minimum=80, maximum=200, value=145, step=5, label="Typography Font Scale (px)", elem_classes=["studio-input"])
                         
                 with gr.TabItem("🎨 2. 3-Stop Color Palettes"):
