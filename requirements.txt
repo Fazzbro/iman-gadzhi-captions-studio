@@ -7,3 +7,5 @@ torch
 numpy
 huggingface_hub<0.26.0
 pydantic<2.11.0
+PyQt6>=6.7.0
+pyinstaller>=6.0.0
