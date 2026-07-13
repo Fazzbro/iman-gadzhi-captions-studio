@@ -94,20 +94,29 @@ def make_gradient_text(text, font, font_size, color_top, color_mid, color_bottom
             b = color_mid[2] * (1.0 - smooth) + color_bottom[2] * smooth
             
         # 2. Premium Studio Glass & Metallic Specular Gloss (Controlled by gloss_intensity)
-        if gloss_intensity > 0:
-            # Top Sharp Glass Rim (Top 18%) - Brilliant specular rim highlight
-            if ratio < 0.18:
-                rim_shine = ((1.0 - (ratio / 0.18)) ** 1.3) * 0.85 * float(gloss_intensity)
+        g_val = float(gloss_intensity)
+        if g_val > 0:
+            # Top Sharp Bevel & Glass Rim Highlight (Top 22%)
+            if ratio < 0.22:
+                rim_shine = ((1.0 - (ratio / 0.22)) ** 1.2) * 0.95 * g_val
                 r = r + (255.0 - r) * min(1.0, rim_shine)
                 g = g + (255.0 - g) * min(1.0, rim_shine)
                 b = b + (255.0 - b) * min(1.0, rim_shine)
                 
-            # Acrylic / Metallic Mid-Body Sheen (Upper 48% specular reflection)
-            if ratio < 0.48:
-                body_shine = ((1.0 - (ratio / 0.48)) ** 1.6) * 0.42 * float(gloss_intensity)
+            # Acrylic / Metallic Mid-Body Dome Reflection (Upper 50%)
+            if ratio < 0.50:
+                body_shine = ((1.0 - (ratio / 0.50)) ** 1.4) * 0.45 * g_val
                 r = r + (255.0 - r) * min(1.0, body_shine)
                 g = g + (255.0 - g) * min(1.0, body_shine)
                 b = b + (255.0 - b) * min(1.0, body_shine)
+                
+            # Metallic Specular Horizon Band across ratio 0.38 - 0.47 (Chrome/Metallic sheen sweep)
+            horizon_dist = abs(ratio - 0.42)
+            if horizon_dist < 0.07:
+                horizon_intensity = ((1.0 - (horizon_dist / 0.07)) ** 1.8) * 0.65 * g_val
+                r = r + (255.0 - r) * min(1.0, horizon_intensity)
+                g = g + (255.0 - g) * min(1.0, horizon_intensity)
+                b = b + (255.0 - b) * min(1.0, horizon_intensity)
             
         # 3. Inner Bevel Shading (Physical 3D Molded Depth near bottom edge)
         if ratio > 0.80:
@@ -272,20 +281,25 @@ def create_tight_text_mask(text, font, tracking=-4, pad=40):
     bottom = min(mask.height, bottom + pad)
     return mask.crop((left, top, right, bottom))
 
-def build_top_layer_extruded_plastic(text, font, tracking=-4, pad=40):
+def build_top_layer_extruded_plastic(
+    text, font, tracking=-4, pad=40,
+    top_hex="#FFD56B", mid_hex="#FF7300", bot_hex="#E53900", shadow_hex="#1A0000",
+    gloss_intensity=1.4, show_shadow=True, shadow_depth=8, shadow_step_x=1, shadow_step_y=1
+):
     """
     Layer 1: Top Text Appearance ("Stop posting")
-    - Smooth vertical linear gradient (#FFD56B pale yellow-orange to #E53900 reddish-orange)
-    - Inner Shine Bevel along top inner edges via mask subtraction
-    - Warm orange outer glow
-    - Dark downward-offset drop shadow
+    - 3-Stop Hermite vertical linear gradient (top_hex -> mid_hex -> bot_hex)
+    - Dynamic Specular Gloss, Bevel Highlight & Metallic Horizon Sheen controlled by gloss_intensity
+    - Sculpted 3D Solid Extrusion Stack controlled by shadow_depth & shadow_hex
     """
     text_mask = create_tight_text_mask(text, font, tracking=tracking, pad=pad)
     w, h = text_mask.size
     
-    # 1. Base Gradient Fill (#FFD56B -> #E53900)
-    top_rgb = (255, 213, 107)
-    bot_rgb = (229, 57, 0)
+    top_rgb = hex_to_rgb(top_hex)
+    mid_rgb = hex_to_rgb(mid_hex)
+    bot_rgb = hex_to_rgb(bot_hex)
+    shadow_rgb = hex_to_rgb(shadow_hex)
+    
     base_grad = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     grad_pixels = base_grad.load()
     mask_pixels = text_mask.load()
@@ -295,59 +309,125 @@ def build_top_layer_extruded_plastic(text, font, tracking=-4, pad=40):
     t_bot = bbox[3] if bbox else h
     t_h = max(1, t_bot - t_top)
     
+    g_val = float(gloss_intensity)
+    
     for y in range(h):
         ratio = max(0.0, min(1.0, (y - t_top) / t_h))
-        smooth = ratio * ratio * (3.0 - 2.0 * ratio)
-        r = int(top_rgb[0] * (1.0 - smooth) + bot_rgb[0] * smooth)
-        g = int(top_rgb[1] * (1.0 - smooth) + bot_rgb[1] * smooth)
-        b = int(top_rgb[2] * (1.0 - smooth) + bot_rgb[2] * smooth)
+        # 3-Stop Hermite S-Curve Gradient
+        if ratio <= 0.5:
+            t = ratio * 2.0
+            smooth = t * t * (3.0 - 2.0 * t)
+            r = top_rgb[0] * (1.0 - smooth) + mid_rgb[0] * smooth
+            g = top_rgb[1] * (1.0 - smooth) + mid_rgb[1] * smooth
+            b = top_rgb[2] * (1.0 - smooth) + mid_rgb[2] * smooth
+        else:
+            t = (ratio - 0.5) * 2.0
+            smooth = t * t * (3.0 - 2.0 * t)
+            r = mid_rgb[0] * (1.0 - smooth) + bot_rgb[0] * smooth
+            g = mid_rgb[1] * (1.0 - smooth) + bot_rgb[1] * smooth
+            b = mid_rgb[2] * (1.0 - smooth) + bot_rgb[2] * smooth
+            
+        # Specular Gloss & Metallic Sheen (Controlled by gloss_intensity)
+        if g_val > 0:
+            # 1. Top Specular Glass Rim (Upper 22%)
+            if ratio < 0.22:
+                rim = ((1.0 - (ratio / 0.22)) ** 1.2) * 0.95 * g_val
+                r = r + (255.0 - r) * min(1.0, rim)
+                g = g + (255.0 - g) * min(1.0, rim)
+                b = b + (255.0 - b) * min(1.0, rim)
+                
+            # 2. Polished Studio Glass / Acrylic Body Reflection (Upper 50%)
+            if ratio < 0.50:
+                body = ((1.0 - (ratio / 0.50)) ** 1.4) * 0.45 * g_val
+                r = r + (255.0 - r) * min(1.0, body)
+                g = g + (255.0 - g) * min(1.0, body)
+                b = b + (255.0 - b) * min(1.0, body)
+                
+            # 3. Ultra Metallic Shine Horizon Band across ratio ~ 0.38 to 0.47
+            horizon_dist = abs(ratio - 0.42)
+            if horizon_dist < 0.07:
+                horizon_shine = ((1.0 - (horizon_dist / 0.07)) ** 1.8) * 0.65 * g_val
+                r = r + (255.0 - r) * min(1.0, horizon_shine)
+                g = g + (255.0 - g) * min(1.0, horizon_shine)
+                b = b + (255.0 - b) * min(1.0, horizon_shine)
+                
+        # Inner Bevel Shading near bottom edge
+        if ratio > 0.82:
+            bevel_dark = 1.0 - (((ratio - 0.82) / 0.18) * 0.32)
+            r = r * bevel_dark
+            g = g * bevel_dark
+            b = b * bevel_dark
+            
+        r_int = int(max(0, min(255, r)))
+        g_int = int(max(0, min(255, g)))
+        b_int = int(max(0, min(255, b)))
         for x in range(w):
             alpha = mask_pixels[x, y]
             if alpha > 0:
-                grad_pixels[x, y] = (r, g, b, alpha)
+                grad_pixels[x, y] = (r_int, g_int, b_int, alpha)
                 
-    # 2. Inner Shine Bevel along top inner edges
+    # Inner Shine Bevel along top inner edges (Scales directly with gloss_intensity)
     offset_y = max(2, int(font.size * 0.028))
     offset_mask = ImageChops.offset(text_mask, 0, offset_y)
     draw_off = ImageDraw.Draw(offset_mask)
     draw_off.rectangle([0, 0, w, offset_y], fill=0)
     
     inner_top_edge = ImageChops.subtract(text_mask, offset_mask)
-    shine_layer = Image.new("RGBA", (w, h), (255, 252, 235, 245))
+    bevel_alpha = min(255, int(150 * max(1.0, g_val)))
+    shine_layer = Image.new("RGBA", (w, h), (255, 255, 255, bevel_alpha))
     shine_layer.putalpha(inner_top_edge)
     
-    # 3. Outer Glow
+    composite = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    
+    # Solid 3D Extrusion Stack
+    if show_shadow and int(shadow_depth) > 0:
+        depth = int(shadow_depth)
+        s_x = int(shadow_step_x)
+        s_y = int(shadow_step_y)
+        for i in range(depth, 0, -1):
+            ao_factor = max(0.25, 1.0 - ((i / max(1, depth)) ** 1.2) * 0.65)
+            r_ao = int(shadow_rgb[0] * ao_factor)
+            g_ao = int(shadow_rgb[1] * ao_factor)
+            b_ao = int(shadow_rgb[2] * ao_factor)
+            layer_i = Image.new("RGBA", (w, h), (r_ao, g_ao, b_ao, 255))
+            layer_i.putalpha(text_mask)
+            composite.alpha_composite(layer_i, (i * s_x, i * s_y))
+            
+    # Outer Warm Glow
     glow_mask = text_mask.filter(ImageFilter.GaussianBlur(radius=max(6, int(font.size * 0.085))))
     glow_layer = Image.new("RGBA", (w, h), (255, 115, 0, 210))
     glow_layer.putalpha(glow_mask)
     
-    # 4. Drop Shadow
-    shadow_mask = ImageChops.offset(text_mask, 2, int(font.size * 0.05))
-    draw_s = ImageDraw.Draw(shadow_mask)
-    draw_s.rectangle([0, 0, w, int(font.size * 0.05)], fill=0)
-    shadow_mask = shadow_mask.filter(ImageFilter.GaussianBlur(radius=5))
-    shadow_layer = Image.new("RGBA", (w, h), (30, 8, 0, 220))
-    shadow_layer.putalpha(shadow_mask)
-    
-    composite = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-    composite = Image.alpha_composite(composite, shadow_layer)
-    composite = Image.alpha_composite(composite, glow_layer)
-    composite = Image.alpha_composite(composite, base_grad)
-    composite = Image.alpha_composite(composite, shine_layer)
+    composite.alpha_composite(glow_layer, (0, 0))
+    composite.alpha_composite(base_grad, (0, 0))
+    composite.alpha_composite(shine_layer, (0, 0))
     return composite
 
-def build_bottom_layer_stark_white(text, font, tracking=-4, pad=40):
+def build_bottom_layer_stark_white(
+    text, font, tracking=-4, pad=40,
+    top_hex="#FFFFFF", mid_hex="#CCCCCC", bot_hex="#AAAAAA", shadow_hex="#0A0A0A",
+    gloss_intensity=1.4, show_shadow=True, shadow_depth=8, shadow_step_x=1, shadow_step_y=1
+):
     """
     Layer 2: Bottom Text Appearance ("Disconnected videos")
-    - Stark, high-contrast flat pure white (#FFFFFF)
+    - Stark, high-contrast pure white or sleek custom sheen
     - Heavy opaque black drop shadow with Gaussian blur, offset downwards and slightly right
     """
     text_mask = create_tight_text_mask(text, font, tracking=tracking, pad=pad)
     w, h = text_mask.size
     
-    white_layer = Image.new("RGBA", (w, h), (255, 255, 255, 255))
-    white_layer.putalpha(text_mask)
-    
+    # If custom color is picked or pure white
+    if top_hex.upper() == "#FFFFFF" and bot_hex.upper() in ("#FFFFFF", "#AAAAAA"):
+        core_layer = Image.new("RGBA", (w, h), (255, 255, 255, 255))
+        core_layer.putalpha(text_mask)
+    else:
+        # Render custom gradient with gloss sheen
+        core_layer = build_top_layer_extruded_plastic(
+            text, font, tracking=tracking, pad=pad,
+            top_hex=top_hex, mid_hex=mid_hex, bot_hex=bot_hex, shadow_hex=shadow_hex,
+            gloss_intensity=gloss_intensity, show_shadow=False
+        )
+        
     offset_x = max(3, int(font.size * 0.03))
     offset_y = max(5, int(font.size * 0.055))
     shadow_mask = ImageChops.offset(text_mask, offset_x, offset_y)
@@ -360,15 +440,31 @@ def build_bottom_layer_stark_white(text, font, tracking=-4, pad=40):
     shadow_layer.putalpha(shadow_mask)
     
     composite = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-    composite = Image.alpha_composite(composite, shadow_layer)
-    composite = Image.alpha_composite(composite, white_layer)
+    if show_shadow:
+        composite = Image.alpha_composite(composite, shadow_layer)
+    composite = Image.alpha_composite(composite, core_layer)
     return composite
 
-def render_stacked_captions_png(text_top, text_bottom, font_file=None, font_size=135, tracking=-5, leading=6):
-    """Creates a cohesive, stacked block of text with minimal line height. Outputs transparent RGBA PIL Image."""
+def render_stacked_captions_png(
+    text_top, text_bottom, font_file=None, font_size=135, tracking=-5, leading=6,
+    gloss_intensity=1.4, show_shadow=True, shadow_depth=8, shadow_step_x=1, shadow_step_y=1,
+    t1_top_hex="#FFD56B", t1_mid_hex="#FF7300", t1_bot_hex="#E53900", t1_shadow_hex="#1A0000",
+    t2_top_hex="#FFFFFF", t2_mid_hex="#CCCCCC", t2_bot_hex="#AAAAAA", t2_shadow_hex="#0A0A0A"
+):
+    """Creates a cohesive, stacked block of text with minimal line height and full 3D metallic gloss."""
     font = resolve_pil_font(font_file, font_size)
-    img_top = build_top_layer_extruded_plastic(text_top, font, tracking=tracking, pad=35)
-    img_bot = build_bottom_layer_stark_white(text_bottom, font, tracking=tracking, pad=35)
+    img_top = build_top_layer_extruded_plastic(
+        text_top, font, tracking=tracking, pad=35,
+        top_hex=t1_top_hex, mid_hex=t1_mid_hex, bot_hex=t1_bot_hex, shadow_hex=t1_shadow_hex,
+        gloss_intensity=gloss_intensity, show_shadow=show_shadow, shadow_depth=shadow_depth,
+        shadow_step_x=shadow_step_x, shadow_step_y=shadow_step_y
+    )
+    img_bot = build_bottom_layer_stark_white(
+        text_bottom, font, tracking=tracking, pad=35,
+        top_hex=t2_top_hex, mid_hex=t2_mid_hex, bot_hex=t2_bot_hex, shadow_hex=t2_shadow_hex,
+        gloss_intensity=gloss_intensity, show_shadow=show_shadow, shadow_depth=shadow_depth,
+        shadow_step_x=shadow_step_x, shadow_step_y=shadow_step_y
+    )
     
     bbox_top = img_top.getbbox()
     bbox_bot = img_bot.getbbox()
@@ -390,13 +486,27 @@ def render_stacked_captions_png(text_top, text_bottom, font_file=None, font_size
     canvas.alpha_composite(img_bot, (x_bot, y_bot))
     return canvas
 
-def render_caption_layer_image_clip(text, font_file=None, font_size=135, is_top_layer=True, tracking=-4):
+def render_caption_layer_image_clip(
+    text, font_file=None, font_size=135, is_top_layer=True, tracking=-4,
+    gloss_intensity=1.4, show_shadow=True, shadow_depth=8, shadow_step_x=1, shadow_step_y=1,
+    top_hex="#FFD56B", mid_hex="#FF7300", bot_hex="#E53900", shadow_hex="#1A0000"
+):
     """Converts a PIL rendered transparent caption layer into a MoviePy ImageClip with proper RGBA mask."""
     font = resolve_pil_font(font_file, font_size)
     if is_top_layer:
-        pil_img = build_top_layer_extruded_plastic(text, font, tracking=tracking, pad=35)
+        pil_img = build_top_layer_extruded_plastic(
+            text, font, tracking=tracking, pad=35,
+            top_hex=top_hex, mid_hex=mid_hex, bot_hex=bot_hex, shadow_hex=shadow_hex,
+            gloss_intensity=gloss_intensity, show_shadow=show_shadow, shadow_depth=shadow_depth,
+            shadow_step_x=shadow_step_x, shadow_step_y=shadow_step_y
+        )
     else:
-        pil_img = build_bottom_layer_stark_white(text, font, tracking=tracking, pad=35)
+        pil_img = build_bottom_layer_stark_white(
+            text, font, tracking=tracking, pad=35,
+            top_hex=top_hex, mid_hex=mid_hex, bot_hex=bot_hex, shadow_hex=shadow_hex,
+            gloss_intensity=gloss_intensity, show_shadow=show_shadow, shadow_depth=shadow_depth,
+            shadow_step_x=shadow_step_x, shadow_step_y=shadow_step_y
+        )
     arr = np.array(pil_img)
     rgb = arr[:, :, :3]
     alpha = arr[:, :, 3] / 255.0
@@ -423,7 +533,7 @@ def generate_style_preview_gui(
     t2_bot_hex, 
     t2_shadow_hex
 ):
-    """Generates an instant high-res PNG style preview before rendering the full video using PIL manual layer compositing."""
+    """Generates an instant high-res PNG style preview respecting all 3D Shiny Glow & Specular Gloss parameters."""
     canvas_w, canvas_h = 1080, 1080
     bg = Image.new("RGBA", (canvas_w, canvas_h), (15, 23, 42, 255))
     
@@ -432,7 +542,11 @@ def generate_style_preview_gui(
     text2 = "Disconnected videos"
     
     stacked_img = render_stacked_captions_png(
-        text1, text2, font_file=font_file, font_size=FONT_SIZE, tracking=-int(FONT_SIZE * 0.04), leading=int(FONT_SIZE * 0.045)
+        text1, text2, font_file=font_file, font_size=FONT_SIZE, tracking=-int(FONT_SIZE * 0.04), leading=int(FONT_SIZE * 0.045),
+        gloss_intensity=gloss_intensity, show_shadow=show_shadow, shadow_depth=shadow_depth,
+        shadow_step_x=shadow_step_x, shadow_step_y=shadow_step_y,
+        t1_top_hex=t1_top_hex, t1_mid_hex=t1_mid_hex, t1_bot_hex=t1_bot_hex, t1_shadow_hex=t1_shadow_hex,
+        t2_top_hex=t2_top_hex, t2_mid_hex=t2_mid_hex, t2_bot_hex=t2_bot_hex, t2_shadow_hex=t2_shadow_hex
     )
     
     x = (canvas_w - stacked_img.width) // 2
