@@ -11,6 +11,8 @@ from moviepy import VideoFileClip, AudioFileClip, ColorClip, TextClip, Composite
 import numpy as np
 import torch
 import os
+import math
+from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageChops
 
 # ==========================================
 # 2. STUDIO-GRADE GRAPHICS & ANIMATION ENGINE
@@ -190,6 +192,8 @@ def resolve_sans_serif_bold_font(custom_font_file=None):
         return "Poppins-Bold.ttf"
         
     system_candidates = [
+        r"C:\Windows\Fonts\ariblk.ttf",        # Windows Arial Black
+        r"C:\Windows\Fonts\impact.ttf",        # Windows Impact
         r"C:\Windows\Fonts\arialbd.ttf",       # Windows Arial Bold
         r"C:\Windows\Fonts\segoeuib.ttf",      # Windows Segoe UI Bold
         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", # Linux DejaVu Sans Bold
@@ -205,6 +209,202 @@ def resolve_sans_serif_bold_font(custom_font_file=None):
             return candidate
             
     return "Arial-Bold"
+
+def resolve_pil_font(font_file=None, font_size=135):
+    """Loads heavy ultra-bold sans-serif typeface for PIL rendering."""
+    candidates = []
+    if font_file and os.path.exists(str(font_file)):
+        candidates.append(str(font_file))
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    candidates.extend([
+        os.path.join(script_dir, "Poppins-Bold.ttf"),
+        "Poppins-Bold.ttf",
+        r"C:\Windows\Fonts\ariblk.ttf",       # Arial Black
+        r"C:\Windows\Fonts\impact.ttf",       # Impact
+        r"C:\Windows\Fonts\arialbd.ttf",      # Arial Bold
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+    ])
+    for c in candidates:
+        if os.path.exists(c):
+            try:
+                return ImageFont.truetype(c, int(font_size))
+            except Exception:
+                pass
+    return ImageFont.load_default()
+
+def create_tight_text_mask(text, font, tracking=-4, pad=40):
+    """Draws character-by-character text mask with extremely tight kerning & tracking."""
+    total_w = 0
+    max_h = 0
+    char_boxes = []
+    for i, ch in enumerate(text):
+        bbox = font.getbbox(ch)
+        adv = font.getlength(ch)
+        char_boxes.append((ch, bbox, adv))
+        if i == len(text) - 1:
+            total_w += max(bbox[2], adv)
+        else:
+            total_w += adv + tracking
+        max_h = max(max_h, bbox[3] - bbox[1])
+        
+    canvas_w = int(math.ceil(total_w)) + pad * 2
+    canvas_h = int(math.ceil(max_h)) + pad * 2
+    
+    mask = Image.new("L", (canvas_w, canvas_h), 0)
+    draw = ImageDraw.Draw(mask)
+    
+    cursor_x = pad
+    sample_bbox = font.getbbox("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+    baseline_y = pad - sample_bbox[1]
+    
+    for i, (ch, bbox, adv) in enumerate(char_boxes):
+        draw.text((cursor_x, baseline_y), ch, font=font, fill=255)
+        if i < len(char_boxes) - 1:
+            cursor_x += adv + tracking
+            
+    bbox_actual = mask.getbbox()
+    if not bbox_actual:
+        return mask
+    left, top, right, bottom = bbox_actual
+    left = max(0, left - pad)
+    top = max(0, top - pad)
+    right = min(mask.width, right + pad)
+    bottom = min(mask.height, bottom + pad)
+    return mask.crop((left, top, right, bottom))
+
+def build_top_layer_extruded_plastic(text, font, tracking=-4, pad=40):
+    """
+    Layer 1: Top Text Appearance ("Stop posting")
+    - Smooth vertical linear gradient (#FFD56B pale yellow-orange to #E53900 reddish-orange)
+    - Inner Shine Bevel along top inner edges via mask subtraction
+    - Warm orange outer glow
+    - Dark downward-offset drop shadow
+    """
+    text_mask = create_tight_text_mask(text, font, tracking=tracking, pad=pad)
+    w, h = text_mask.size
+    
+    # 1. Base Gradient Fill (#FFD56B -> #E53900)
+    top_rgb = (255, 213, 107)
+    bot_rgb = (229, 57, 0)
+    base_grad = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    grad_pixels = base_grad.load()
+    mask_pixels = text_mask.load()
+    
+    bbox = text_mask.getbbox()
+    t_top = bbox[1] if bbox else 0
+    t_bot = bbox[3] if bbox else h
+    t_h = max(1, t_bot - t_top)
+    
+    for y in range(h):
+        ratio = max(0.0, min(1.0, (y - t_top) / t_h))
+        smooth = ratio * ratio * (3.0 - 2.0 * ratio)
+        r = int(top_rgb[0] * (1.0 - smooth) + bot_rgb[0] * smooth)
+        g = int(top_rgb[1] * (1.0 - smooth) + bot_rgb[1] * smooth)
+        b = int(top_rgb[2] * (1.0 - smooth) + bot_rgb[2] * smooth)
+        for x in range(w):
+            alpha = mask_pixels[x, y]
+            if alpha > 0:
+                grad_pixels[x, y] = (r, g, b, alpha)
+                
+    # 2. Inner Shine Bevel along top inner edges
+    offset_y = max(2, int(font.size * 0.028))
+    offset_mask = ImageChops.offset(text_mask, 0, offset_y)
+    draw_off = ImageDraw.Draw(offset_mask)
+    draw_off.rectangle([0, 0, w, offset_y], fill=0)
+    
+    inner_top_edge = ImageChops.subtract(text_mask, offset_mask)
+    shine_layer = Image.new("RGBA", (w, h), (255, 252, 235, 245))
+    shine_layer.putalpha(inner_top_edge)
+    
+    # 3. Outer Glow
+    glow_mask = text_mask.filter(ImageFilter.GaussianBlur(radius=max(6, int(font.size * 0.085))))
+    glow_layer = Image.new("RGBA", (w, h), (255, 115, 0, 210))
+    glow_layer.putalpha(glow_mask)
+    
+    # 4. Drop Shadow
+    shadow_mask = ImageChops.offset(text_mask, 2, int(font.size * 0.05))
+    draw_s = ImageDraw.Draw(shadow_mask)
+    draw_s.rectangle([0, 0, w, int(font.size * 0.05)], fill=0)
+    shadow_mask = shadow_mask.filter(ImageFilter.GaussianBlur(radius=5))
+    shadow_layer = Image.new("RGBA", (w, h), (30, 8, 0, 220))
+    shadow_layer.putalpha(shadow_mask)
+    
+    composite = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    composite = Image.alpha_composite(composite, shadow_layer)
+    composite = Image.alpha_composite(composite, glow_layer)
+    composite = Image.alpha_composite(composite, base_grad)
+    composite = Image.alpha_composite(composite, shine_layer)
+    return composite
+
+def build_bottom_layer_stark_white(text, font, tracking=-4, pad=40):
+    """
+    Layer 2: Bottom Text Appearance ("Disconnected videos")
+    - Stark, high-contrast flat pure white (#FFFFFF)
+    - Heavy opaque black drop shadow with Gaussian blur, offset downwards and slightly right
+    """
+    text_mask = create_tight_text_mask(text, font, tracking=tracking, pad=pad)
+    w, h = text_mask.size
+    
+    white_layer = Image.new("RGBA", (w, h), (255, 255, 255, 255))
+    white_layer.putalpha(text_mask)
+    
+    offset_x = max(3, int(font.size * 0.03))
+    offset_y = max(5, int(font.size * 0.055))
+    shadow_mask = ImageChops.offset(text_mask, offset_x, offset_y)
+    draw_s = ImageDraw.Draw(shadow_mask)
+    draw_s.rectangle([0, 0, w, offset_y], fill=0)
+    draw_s.rectangle([0, 0, offset_x, h], fill=0)
+    shadow_mask = shadow_mask.filter(ImageFilter.GaussianBlur(radius=max(4, int(font.size * 0.055))))
+    
+    shadow_layer = Image.new("RGBA", (w, h), (10, 12, 18, 240))
+    shadow_layer.putalpha(shadow_mask)
+    
+    composite = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    composite = Image.alpha_composite(composite, shadow_layer)
+    composite = Image.alpha_composite(composite, white_layer)
+    return composite
+
+def render_stacked_captions_png(text_top, text_bottom, font_file=None, font_size=135, tracking=-5, leading=6):
+    """Creates a cohesive, stacked block of text with minimal line height. Outputs transparent RGBA PIL Image."""
+    font = resolve_pil_font(font_file, font_size)
+    img_top = build_top_layer_extruded_plastic(text_top, font, tracking=tracking, pad=35)
+    img_bot = build_bottom_layer_stark_white(text_bottom, font, tracking=tracking, pad=35)
+    
+    bbox_top = img_top.getbbox()
+    bbox_bot = img_bot.getbbox()
+    w_top, h_top = img_top.size
+    w_bot, h_bot = img_bot.size
+    
+    final_w = max(w_top, w_bot) + 40
+    top_content_h = bbox_top[3] - bbox_top[1] if bbox_top else h_top
+    bot_content_h = bbox_bot[3] - bbox_bot[1] if bbox_bot else h_bot
+    final_h = top_content_h + leading + bot_content_h + 80
+    
+    canvas = Image.new("RGBA", (final_w, final_h), (0, 0, 0, 0))
+    x_top = (final_w - w_top) // 2
+    y_top = 30
+    x_bot = (final_w - w_bot) // 2
+    y_bot = y_top + top_content_h + leading - 15
+    
+    canvas.alpha_composite(img_top, (x_top, y_top))
+    canvas.alpha_composite(img_bot, (x_bot, y_bot))
+    return canvas
+
+def render_caption_layer_image_clip(text, font_file=None, font_size=135, is_top_layer=True, tracking=-4):
+    """Converts a PIL rendered transparent caption layer into a MoviePy ImageClip with proper RGBA mask."""
+    font = resolve_pil_font(font_file, font_size)
+    if is_top_layer:
+        pil_img = build_top_layer_extruded_plastic(text, font, tracking=tracking, pad=35)
+    else:
+        pil_img = build_bottom_layer_stark_white(text, font, tracking=tracking, pad=35)
+    arr = np.array(pil_img)
+    rgb = arr[:, :, :3]
+    alpha = arr[:, :, 3] / 255.0
+    try:
+        mask_clip = ImageClip(alpha, is_mask=True)
+    except TypeError:
+        mask_clip = ImageClip(alpha, ismask=True)
+    return ImageClip(rgb).with_mask(mask_clip)
 
 def generate_style_preview_gui(
     font_file, 
@@ -223,51 +423,24 @@ def generate_style_preview_gui(
     t2_bot_hex, 
     t2_shadow_hex
 ):
-    """Generates an instant high-res PNG style preview before rendering the full video."""
-    from PIL import Image
+    """Generates an instant high-res PNG style preview before rendering the full video using PIL manual layer compositing."""
     canvas_w, canvas_h = 1080, 1080
-    # Create sleek dark studio background slate
-    canvas = np.full((canvas_h, canvas_w, 3), [15, 23, 42], dtype=np.uint8)
+    bg = Image.new("RGBA", (canvas_w, canvas_h), (15, 23, 42, 255))
     
-    FONT = resolve_sans_serif_bold_font(font_file)
-        
     FONT_SIZE = int(font_size)
-    margin_x = 20
-    margin_y = 50
-    
     text1 = "Stop posting"
     text2 = "Disconnected videos"
     
-    try:
-        w1 = TextClip(text=text1, font=FONT, font_size=FONT_SIZE, margin=(margin_x, margin_y)).size[0]
-        w2 = TextClip(text=text2, font=FONT, font_size=FONT_SIZE, margin=(margin_x, margin_y)).size[0]
-    except Exception:
-        FONT = resolve_sans_serif_bold_font(None)
-        w1 = TextClip(text=text1, font=FONT, font_size=FONT_SIZE, margin=(margin_x, margin_y)).size[0]
-        w2 = TextClip(text=text2, font=FONT, font_size=FONT_SIZE, margin=(margin_x, margin_y)).size[0]
-        
-    start_x_t1 = (canvas_w - w1) // 2
-    start_x_t2 = (canvas_w - w2) // 2
-    base_y_t1 = canvas_h // 2 - int(FONT_SIZE * 0.55)
-    base_y_t2 = canvas_h // 2 + int(FONT_SIZE * 0.45)
+    stacked_img = render_stacked_captions_png(
+        text1, text2, font_file=font_file, font_size=FONT_SIZE, tracking=-int(FONT_SIZE * 0.04), leading=int(FONT_SIZE * 0.045)
+    )
     
-    if show_shadow:
-        t1_3d = get_solid_3d_extrusion(text1, FONT, FONT_SIZE, t1_shadow_hex, depth=int(shadow_depth), step_x=int(shadow_step_x), step_y=int(shadow_step_y), margin_x=margin_x, margin_y=margin_y)
-        for clip, ox, oy in t1_3d:
-            alpha_composite_onto(canvas, clip, start_x_t1 + ox, base_y_t1 + oy)
-            
-        t2_3d = get_solid_3d_extrusion(text2, FONT, FONT_SIZE, t2_shadow_hex, depth=int(shadow_depth), step_x=int(shadow_step_x), step_y=int(shadow_step_y), margin_x=margin_x, margin_y=margin_y)
-        for clip, ox, oy in t2_3d:
-            alpha_composite_onto(canvas, clip, start_x_t2 + ox, base_y_t2 + oy)
-            
-    t1_core = make_gradient_text(text1, FONT, FONT_SIZE, hex_to_rgb(t1_top_hex), hex_to_rgb(t1_mid_hex), hex_to_rgb(t1_bot_hex), gloss_intensity=float(gloss_intensity), margin_x=margin_x, margin_y=margin_y)
-    alpha_composite_onto(canvas, t1_core, start_x_t1, base_y_t1)
-    
-    t2_core = make_gradient_text(text2, FONT, FONT_SIZE, hex_to_rgb(t2_top_hex), hex_to_rgb(t2_mid_hex), hex_to_rgb(t2_bot_hex), gloss_intensity=float(gloss_intensity), margin_x=margin_x, margin_y=margin_y)
-    alpha_composite_onto(canvas, t2_core, start_x_t2, base_y_t2)
+    x = (canvas_w - stacked_img.width) // 2
+    y = (canvas_h - stacked_img.height) // 2
+    bg.alpha_composite(stacked_img, (x, y))
     
     preview_path = "live_style_preview.png"
-    Image.fromarray(canvas).save(preview_path)
+    bg.convert("RGB").save(preview_path, "PNG")
     return preview_path
 
 def make_rise_anim(base_x, base_y, chunk_duration, travel_dist, offset_x=0, offset_y=0):
