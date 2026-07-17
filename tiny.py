@@ -284,7 +284,7 @@ def create_tight_text_mask(text, font, tracking=-4, pad=40):
 def build_top_layer_extruded_plastic(
     text, font, tracking=-4, pad=40,
     top_hex="#FFD56B", mid_hex="#FF7300", bot_hex="#E53900", shadow_hex="#1A0000",
-    gloss_intensity=1.4, show_shadow=True, shadow_depth=8, shadow_step_x=1, shadow_step_y=1
+    gloss_intensity=0.7, show_shadow=True, shadow_depth=3, shadow_step_x=1, shadow_step_y=1
 ):
     """
     Layer 1: Top Text Appearance ("Stop posting")
@@ -406,7 +406,7 @@ def build_top_layer_extruded_plastic(
 def build_bottom_layer_stark_white(
     text, font, tracking=-4, pad=40,
     top_hex="#FFFFFF", mid_hex="#CCCCCC", bot_hex="#AAAAAA", shadow_hex="#0A0A0A",
-    gloss_intensity=1.4, show_shadow=True, shadow_depth=8, shadow_step_x=1, shadow_step_y=1
+    gloss_intensity=0.7, show_shadow=True, shadow_depth=3, shadow_step_x=1, shadow_step_y=1
 ):
     """
     Layer 2: Bottom Text Appearance ("Disconnected videos")
@@ -447,7 +447,7 @@ def build_bottom_layer_stark_white(
 
 def render_stacked_captions_png(
     text_top, text_bottom, font_file=None, font_size=135, tracking=-5, leading=6,
-    gloss_intensity=1.4, show_shadow=True, shadow_depth=8, shadow_step_x=1, shadow_step_y=1,
+    gloss_intensity=0.7, show_shadow=True, shadow_depth=3, shadow_step_x=1, shadow_step_y=1,
     t1_top_hex="#FFD56B", t1_mid_hex="#FF7300", t1_bot_hex="#E53900", t1_shadow_hex="#1A0000",
     t2_top_hex="#FFFFFF", t2_mid_hex="#CCCCCC", t2_bot_hex="#AAAAAA", t2_shadow_hex="#0A0A0A"
 ):
@@ -488,7 +488,7 @@ def render_stacked_captions_png(
 
 def render_caption_layer_image_clip(
     text, font_file=None, font_size=135, is_top_layer=True, tracking=-4,
-    gloss_intensity=1.4, show_shadow=True, shadow_depth=8, shadow_step_x=1, shadow_step_y=1,
+    gloss_intensity=0.7, show_shadow=True, shadow_depth=3, shadow_step_x=1, shadow_step_y=1,
     top_hex="#FFD56B", mid_hex="#FF7300", bot_hex="#E53900", shadow_hex="#1A0000"
 ):
     """Converts a PIL rendered transparent caption layer into a MoviePy ImageClip with proper RGBA mask."""
@@ -975,10 +975,10 @@ with gr.Blocks(**blocks_kwargs) as app:
                             
                 with gr.TabItem("✨ 3. VFX & Shadow Control Engine"):
                     gr.HTML("<p style='color: #94A3B8; font-size: 0.85rem; margin-bottom: 12px;'>Customize specular gloss sheen, 3D extrusion depth, and directional shadow steps.</p>")
-                    gloss_intensity = gr.Slider(minimum=0.0, maximum=2.5, value=1.4, step=0.1, label="✨ Specular Gloss & Sheen Intensity (1.4 = Studio Gloss, 2.5 = Ultra Metallic Shine)", elem_classes=["studio-input"])
+                    gloss_intensity = gr.Slider(minimum=0.0, maximum=2.5, value=0.7, step=0.1, label="✨ Specular Gloss & Sheen Intensity (0.7 = Studio Gloss, 2.5 = Ultra Metallic Shine)", elem_classes=["studio-input"])
                     show_shadow = gr.Checkbox(label="🧊 Render 3D Extruded Block Shadow", value=True, elem_classes=["studio-checkbox"])
                     with gr.Row():
-                        shadow_depth = gr.Slider(minimum=0, maximum=25, value=9, step=1, label="3D Extrusion Depth (Layers)", elem_classes=["studio-input"])
+                        shadow_depth = gr.Slider(minimum=0, maximum=25, value=3, step=1, label="3D Extrusion Depth (Layers)", elem_classes=["studio-input"])
                         shadow_step_x = gr.Slider(minimum=-5, maximum=5, value=1, step=1, label="Extrusion Direction X Step", elem_classes=["studio-input"])
                         shadow_step_y = gr.Slider(minimum=-5, maximum=5, value=1, step=1, label="Extrusion Direction Y Step", elem_classes=["studio-input"])
                     with gr.Row():
