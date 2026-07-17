@@ -2,12 +2,19 @@
 
 <div align="center">
 
+[![Hugging Face Spaces](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Live%20Space-FFD21E?style=for-the-badge&logoColor=black)](https://huggingface.co/spaces/Expodecaprio/iman-gadzhi-captions-studio)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11%20Desktop-00A4EF?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/Fazzbro/iman-gadzhi-captions-studio)
 [![Edition](https://img.shields.io/badge/Edition-Chroma%20Key%20Green%20Screen-00FF00?style=for-the-badge&logo=adobe-premiere-pro&logoColor=black)](https://github.com/Fazzbro/iman-gadzhi-captions-studio)
 [![PyQt6](https://img.shields.io/badge/GUI-PyQt6%20Native%20Desktop-41CD52?style=for-the-badge&logo=qt&logoColor=white)](https://riverbankcomputing.com/software/pyqt/intro)
 
-### 🌟 Permanent Modern Windows Desktop Application!
-Experience true studio performance with native drag-and-drop media dropzones, non-blocking asynchronous multi-threaded rendering (`QThread`), live style preview canvases, interactive color swatches (`QColorDialog`), and 1-click Windows shortcuts.
+<br>
+
+<a href="https://huggingface.co/spaces/Expodecaprio/iman-gadzhi-captions-studio" target="_blank">
+  <img src="https://huggingface.co/datasets/huggingface/badges/raw/main/open-in-hf-spaces-xl-dark.svg" alt="Open in Hugging Face Spaces" height="52" style="border-radius: 8px; margin: 8px 0;">
+</a>
+
+### 🌟 Permanent Modern Windows Desktop & Live Web Application!
+Experience true studio performance with native drag-and-drop media dropzones, non-blocking asynchronous multi-threaded rendering (`QThread`), live style preview canvases, interactive color swatches (`QColorDialog`), and instant browser-based cloud access via Hugging Face Spaces.
 
 </div>
 
