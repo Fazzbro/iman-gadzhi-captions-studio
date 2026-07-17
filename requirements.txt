@@ -1,11 +1,10 @@
-gradio==4.44.0
+gradio==4.44.1
 starlette<0.38.0
 fastapi<0.112.0
 whisper-timestamped
 moviepy>=2.0.0
 torch
 numpy
+pillow>=10.0.0
 huggingface_hub<0.26.0
 pydantic<2.11.0
-PyQt6>=6.7.0
-pyinstaller>=6.0.0
