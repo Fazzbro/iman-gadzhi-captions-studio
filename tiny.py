@@ -914,7 +914,12 @@ button.primary-btn:hover {
 }
 """
 
-with gr.Blocks(title="Iman Gadzhi Studio Captions Pro", css=custom_css) as app:
+gradio_major = int(gr.__version__.split('.')[0]) if hasattr(gr, '__version__') and gr.__version__ else 4
+blocks_kwargs = {"title": "Iman Gadzhi Studio Captions Pro"}
+if gradio_major < 6:
+    blocks_kwargs["css"] = custom_css
+
+with gr.Blocks(**blocks_kwargs) as app:
     # Studio Top Navbar
     gr.HTML("""
     <div class="studio-header">
@@ -1055,5 +1060,10 @@ with gr.Blocks(title="Iman Gadzhi Studio Captions Pro", css=custom_css) as app:
         outputs=[output_video]
     )
 
+demo = app
+
 if __name__ == "__main__":
-    app.launch(server_name="0.0.0.0", server_port=7860, inbrowser=True)
+    launch_kwargs = {"server_name": "0.0.0.0", "server_port": 7860, "inbrowser": True}
+    if gradio_major >= 6:
+        launch_kwargs["css"] = custom_css
+    app.launch(**launch_kwargs)
