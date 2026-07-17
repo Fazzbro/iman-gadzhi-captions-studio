@@ -755,33 +755,34 @@ def render_video_gui(
             wipe_dur = min(0.35, chunk_duration * 0.8)
             travel_dist = int(chunk_font_size * 1.1)
             
-            # --- LINE 1 (Top Line: Orange Gradient + Soft Feathered Wipe + 3D Shadow) ---
-            if show_shadow:
-                t1_3d_layers = get_solid_3d_extrusion(word1_text, FONT, chunk_font_size, T1_3D, depth=int(shadow_depth), step_x=int(shadow_step_x), step_y=int(shadow_step_y), margin_x=margin_x, margin_y=margin_y)
-                for clip, ox, oy in t1_3d_layers:
-                    c = apply_wipe_filter(clip, duration=wipe_dur, feather_width=35).with_start(start_time).with_end(end_time).with_position((start_x_t1 + ox, base_y_t1 + oy))
-                    video_layers.append(c)
-                    
-            t1_core = make_gradient_text(word1_text, FONT, chunk_font_size, T1_TOP, T1_MID, T1_BOT, gloss_intensity=float(gloss_intensity), margin_x=margin_x, margin_y=margin_y)
-            t1_core = apply_wipe_filter(t1_core, duration=wipe_dur, feather_width=35).with_start(start_time).with_end(end_time).with_position((start_x_t1, base_y_t1))
-            video_layers.append(t1_core)
+            # --- LINE 1 (Top Line: PIL Extruded Plastic 3D & Specular Sheen + Soft Wipe) ---
+            t1_clip = render_caption_layer_image_clip(
+                word1_text, font_file=font_file, font_size=chunk_font_size, is_top_layer=True, tracking=-int(chunk_font_size * 0.04),
+                gloss_intensity=float(gloss_intensity), show_shadow=show_shadow, shadow_depth=int(shadow_depth),
+                shadow_step_x=int(shadow_step_x), shadow_step_y=int(shadow_step_y),
+                top_hex=t1_top_hex, mid_hex=t1_mid_hex, bot_hex=t1_bot_hex, shadow_hex=t1_shadow_hex
+            )
+            t1_w, t1_h = t1_clip.size
+            pos_x_t1 = (canvas_w - t1_w) // 2
             
-            # --- LINE 2 (Bottom Line: Crisp White + Pop-in Rise + Kinetic Zoom Bounce + Rotational Tilt) ---
+            t1_animated = apply_wipe_filter(t1_clip, duration=wipe_dur, feather_width=35).with_start(start_time).with_end(end_time).with_position((pos_x_t1, base_y_t1))
+            video_layers.append(t1_animated)
+            
+            # --- LINE 2 (Bottom Line: Crisp White / Custom Sheen + Pop-in Rise + Kinetic Zoom Bounce + Rotational Tilt) ---
             if word2_text:
-                rise_anim_core = make_rise_anim(start_x_t2, base_y_t2, chunk_duration, travel_dist, offset_x=0, offset_y=0)
+                t2_clip = render_caption_layer_image_clip(
+                    word2_text, font_file=font_file, font_size=chunk_font_size, is_top_layer=False, tracking=-int(chunk_font_size * 0.04),
+                    gloss_intensity=float(gloss_intensity), show_shadow=show_shadow, shadow_depth=int(shadow_depth),
+                    shadow_step_x=int(shadow_step_x), shadow_step_y=int(shadow_step_y),
+                    top_hex=t2_top_hex, mid_hex=t2_mid_hex, bot_hex=t2_bot_hex, shadow_hex=t2_shadow_hex
+                )
+                t2_w, t2_h = t2_clip.size
+                pos_x_t2 = (canvas_w - t2_w) // 2
                 
-                if show_shadow:
-                    t2_3d_layers = get_solid_3d_extrusion(word2_text, FONT, chunk_font_size, T2_3D, depth=int(shadow_depth), step_x=int(shadow_step_x), step_y=int(shadow_step_y), margin_x=margin_x, margin_y=margin_y)
-                    for clip, ox, oy in t2_3d_layers:
-                        c = clip.resized(lambda t: get_spring_scale(t)).rotated(lambda t: get_entry_tilt(t), expand=True)
-                        t2_3d_anim = make_rise_anim(start_x_t2, base_y_t2, chunk_duration, travel_dist, offset_x=ox, offset_y=oy)
-                        c = c.with_start(start_time).with_end(end_time).with_position(t2_3d_anim)
-                        video_layers.append(c)
-                        
-                t2_core = make_gradient_text(word2_text, FONT, chunk_font_size, T2_TOP, T2_MID, T2_BOT, gloss_intensity=float(gloss_intensity), margin_x=margin_x, margin_y=margin_y)
-                t2_core = t2_core.resized(lambda t: get_spring_scale(t)).rotated(lambda t: get_entry_tilt(t), expand=True)
-                t2_core = t2_core.with_start(start_time).with_end(end_time).with_position(rise_anim_core)
-                video_layers.append(t2_core)
+                rise_anim_core = make_rise_anim(pos_x_t2, base_y_t2, chunk_duration, travel_dist, offset_x=0, offset_y=0)
+                t2_animated = t2_clip.resized(lambda t: get_spring_scale(t)).rotated(lambda t: get_entry_tilt(t), expand=True)
+                t2_animated = t2_animated.with_start(start_time).with_end(end_time).with_position(rise_anim_core)
+                video_layers.append(t2_animated)
                 
     progress(0.8, desc="Compositing Canvas & Exporting Video...")
     output_path = "gui_output_captions.mp4"
