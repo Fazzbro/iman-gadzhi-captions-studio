@@ -1,19 +1,14 @@
-# 🎬 Iman Gadzhi Style Captions Studio — Pro Edition (Hugging Face & Local)
+# 🎬 Iman Gadzhi Style Captions Studio — Pro Edition (Local Studio)
 
 <div align="center">
 
-[![Hugging Face Spaces](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Live%20Space-FFD21E?style=for-the-badge&logoColor=black)](https://huggingface.co/spaces/Expodecaprio/iman-gadzhi-captions-studio)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%2F%20Mac%20%2F%20Linux-00A4EF?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/Fazzbro/iman-gadzhi-captions-studio)
 [![Edition](https://img.shields.io/badge/Edition-Chroma%20Key%20Green%20Screen-00FF00?style=for-the-badge&logo=adobe-premiere-pro&logoColor=black)](https://github.com/Fazzbro/iman-gadzhi-captions-studio)
 [![Gradio](https://img.shields.io/badge/GUI-Gradio%20Studio%20Pro-FF4B2B?style=for-the-badge&logo=gradio&logoColor=white)](https://gradio.app/)
 
 <br>
 
-<a href="https://huggingface.co/spaces/Expodecaprio/iman-gadzhi-captions-studio" target="_blank">
-  <img src="https://huggingface.co/datasets/huggingface/badges/raw/main/open-in-hf-spaces-xl-dark.svg" alt="Open in Hugging Face Spaces" height="52" style="border-radius: 8px; margin: 8px 0;">
-</a>
-
-### 🌟 Unified Modern Studio Experience for Cloud & Local Execution
+### 🌟 Unified Modern Studio Experience for Local Execution
 Experience true studio performance with dual-word kinetic animations, custom 3-stop RGB gradients, specular gloss sheen controls, 3D extruded block shadows, live style preview canvases, and solid green screen output for video editing.
 
 </div>
@@ -39,12 +34,14 @@ Ensure you have Python 3.10+ installed and install the required packages:
 pip install -r requirements.txt
 ```
 
-### 2. Run the Studio Application (`tiny.py`)
-Launch the unified Gradio web studio directly from your terminal:
+### 2. Run the Studio Application (`tiny_local_studio.py`)
+Launch the standalone Gradio web studio directly from your terminal:
 ```powershell
-python tiny.py
+python tiny_local_studio.py
 ```
-Open `http://localhost:7860` in your browser. You will see the exact same feature-rich `v2.5 PRO` interface as deployed on Hugging Face Spaces!
+*(Note: Per our file preservation policy during major modifications, `tiny.py` is preserved as an unmodified original fallback while `tiny_local_studio.py` runs cleanly without any Hugging Face Spaces cloud dependencies).*
+
+Open `http://localhost:7860` in your browser. You will see the feature-rich `v2.6 PRO LOCAL` studio interface running smoothly on your machine!
 
 ---
 
