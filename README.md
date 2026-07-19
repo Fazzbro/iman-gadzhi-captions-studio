@@ -34,14 +34,12 @@ Ensure you have Python 3.10+ installed and install the required packages:
 pip install -r requirements.txt
 ```
 
-### 2. Run the Studio Application (`tiny_local_studio.py`)
+### 2. Run the Studio Application (`tiny.py`)
 Launch the standalone Gradio web studio directly from your terminal:
 ```powershell
-python tiny_local_studio.py
+python tiny.py
 ```
-*(Note: Per our file preservation policy during major modifications, `tiny.py` is preserved as an unmodified original fallback while `tiny_local_studio.py` runs cleanly without any Hugging Face Spaces cloud dependencies).*
-
-Open `http://localhost:7860` in your browser. You will see the feature-rich `v2.6 PRO LOCAL` studio interface running smoothly on your machine!
+Open `http://localhost:7860` in your browser. You will see the feature-rich `v2.7 PRO LOCAL` studio interface running smoothly on your machine!
 
 ---
 

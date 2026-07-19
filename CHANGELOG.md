@@ -4,6 +4,13 @@ All notable changes to the Iman Gadzhi Style Captions Studio Pro project will be
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.0] - 2026-07-19
+### Changed
+- Consolidated local studio application into a single unified script (`tiny.py` updated to `v2.7 PRO LOCAL`), eliminating code duplication across `tiny_local_studio.py` per explicit user option selection.
+- Updated `README.md` launch instructions to point directly to `python tiny.py`.
+### Removed
+- Removed `tiny_local_studio.py` (`git rm`) now that `tiny.py` serves cleanly as the standalone local studio without cloud dependencies.
+
 ## [2.6.0] - 2026-07-19
 ### Added
 - `.gitignore` file covering virtual environments, `__pycache__`, environment secrets (`.env`), and temporary/rendered media files (`*.mp4`, `*.mov`, `gui_output_captions.mp4`, `live_style_preview.png`).

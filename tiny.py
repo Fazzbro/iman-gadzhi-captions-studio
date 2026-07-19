@@ -932,7 +932,7 @@ with gr.Blocks(**blocks_kwargs) as app:
         </div>
         <div style="display: flex; gap: 12px; align-items: center;">
             <span style="background: rgba(0, 255, 0, 0.15); color: #00FF66; border: 1px solid #00FF66; padding: 4px 12px; border-radius: 20px; font-size: 0.85rem; font-weight: 600;">🟢 CHROMA KEY GREEN SCREEN</span>
-            <span style="background: #232834; color: #CBD5E1; padding: 4px 10px; border-radius: 6px; font-size: 0.85rem; font-family: monospace;">v2.5 PRO</span>
+            <span style="background: #232834; color: #CBD5E1; padding: 4px 10px; border-radius: 6px; font-size: 0.85rem; font-family: monospace;">v2.7 PRO LOCAL</span>
         </div>
     </div>
     """)
@@ -1061,7 +1061,7 @@ with gr.Blocks(**blocks_kwargs) as app:
         outputs=[output_video]
     )
 
-demo = app
+# Note: Hugging Face Spaces 'demo = app' entrypoint removed; running pure local studio via app.launch()
 
 if __name__ == "__main__":
     launch_kwargs = {"server_name": "0.0.0.0", "server_port": 7860, "inbrowser": True}
