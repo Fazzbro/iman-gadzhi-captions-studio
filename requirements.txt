@@ -6,5 +6,4 @@ moviepy>=2.0.0
 torch
 numpy
 pillow>=10.0.0
-huggingface_hub<0.26.0
 pydantic<2.11.0
